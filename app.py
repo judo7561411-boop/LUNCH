@@ -19,6 +19,43 @@ IMAGE_DIR = "static/images"
 os.makedirs(IMAGE_DIR, exist_ok=True)
 
 # ==========================================
+# 注入視覺優化 CSS (提高手機平板點選體驗)
+# ==========================================
+st.markdown(
+    """
+    <style>
+    /* 強化主要按鈕與觸控範圍 */
+    .stButton button {
+        border-radius: 8px;
+        font-weight: bold;
+        transition: all 0.2s ease-in-out;
+    }
+    .stButton button:active {
+        transform: scale(0.98);
+    }
+    /* 餐點卡片外觀增強 */
+    div[data-testid="stVerticalBlockBorderWrapper"] {
+        border-radius: 12px;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+        background-color: #ffffff;
+    }
+    /* 標籤字體優化 */
+    .price-badge {
+        background-color: #fee2e2;
+        color: #dc2626;
+        padding: 4px 10px;
+        border-radius: 6px;
+        font-weight: 700;
+        font-size: 1.1rem;
+        display: inline-block;
+        margin-bottom: 6px;
+    }
+    </style>
+""",
+    unsafe_allow_html=True,
+)
+
+# ==========================================
 # 1. 資料庫連線工廠與自動升級初始化
 # ==========================================
 
@@ -104,7 +141,7 @@ def init_db():
     if "image_url" not in menu_cols:
         c.execute("ALTER TABLE menu ADD COLUMN image_url TEXT DEFAULT ''")
 
-    # 檢查並補足預設店家
+    # 寫入預設店家
     c.execute("SELECT COUNT(*) FROM stores")
     if c.fetchone()[0] == 0:
         c.executemany(
@@ -112,7 +149,7 @@ def init_db():
             [("老牌麵食館",), ("好味便當店",), ("清爽手搖茶",)],
         )
 
-    # 檢查並補足預設菜單品項
+    # 寫入預設菜單品項
     c.execute("SELECT COUNT(*) FROM menu")
     if c.fetchone()[0] == 0:
         default_dishes = [
@@ -135,7 +172,7 @@ def init_db():
             default_dishes,
         )
 
-    # 檢查並補足預設人員
+    # 寫入預設人員名單
     c.execute("SELECT COUNT(*) FROM users")
     if c.fetchone()[0] == 0:
         c.executemany(
@@ -287,7 +324,7 @@ def delete_order_item(order_id):
 
 
 # ==========================================
-# 3. Session State 狀態初始化 (加入點餐完成旗標)
+# 3. Session State 狀態初始化
 # ==========================================
 if "cart" not in st.session_state:
     st.session_state.cart = {}
@@ -309,10 +346,9 @@ main_tab1, main_tab2, main_tab3, main_tab4 = st.tabs(
 )
 
 # ------------------------------------------
-# 分頁 1: 我要點餐 (支援完成頁面切換)
+# 分頁 1: 我要點餐 (視覺點選方便與易懂版)
 # ------------------------------------------
 with main_tab1:
-    # 核心亮點：若已點餐完成，直接呈現確認頁面
     if st.session_state.order_completed:
         info = st.session_state.last_order_info
         st.success("## 🎉 您已點餐完畢！")
@@ -324,7 +360,7 @@ with main_tab1:
             st.markdown(f"* **點餐內容**：{info.get('items', '')}")
             if info.get('note'):
                 st.markdown(f"* **備註需求**：{info.get('note')}")
-            st.markdown(f"### 應付總額：<span style='color:#dc2626; font-size:1.4rem;'>NT$ {info.get('total', 0)}</span>", unsafe_allow_html=True)
+            st.markdown(f"### 應付總額：<span class='price-badge'>NT$ {info.get('total', 0)}</span>", unsafe_allow_html=True)
             st.caption(f"下單完成時間：{info.get('time', '')} ｜ 資料庫已安全存檔")
 
         st.write("")
@@ -338,17 +374,17 @@ with main_tab1:
 
     else:
         # ==========================================
-        # 步驟一：姓名與日期設定 (最前方)
+        # 步驟一：設定用餐日期與姓名 (視覺卡片化)
         # ==========================================
         with st.container(border=True):
-            st.subheader("👤 步驟一：設定用餐日期與點餐人姓名")
+            st.markdown("#### 👤 **步驟一：設定用餐日期與點餐人姓名**")
             col_date_top, col_user_top = st.columns([1, 1], gap="large")
 
             with col_date_top:
                 order_target_date = st.date_input(
-                    "📅 1. 選擇用餐/預訂日期：",
+                    "📅 1. 用餐/預訂日期：",
                     value=date.today(),
-                    help="預設為今天。若要預訂明天或未來日期，請在此直接切換！",
+                    help="預設為今天。若要預訂明天或未來日期，請在此直接挑選！",
                 )
                 target_date_str = order_target_date.strftime("%Y-%m-%d")
 
@@ -381,7 +417,7 @@ with main_tab1:
                     remain = max(0, user_limit - spent_on_target_date)
                     date_label = "今日" if target_date_str == date.today().strftime("%Y-%m-%d") else f"【{target_date_str}】"
                     st.warning(
-                        f"💳 **【{selected_user}】預算狀態**：每日上限 **NT$ {user_limit}** ｜ {date_label}已用 **NT$ {spent_on_target_date}** ｜ 剩餘可用額度 **NT$ {remain}**"
+                        f"💳 **【{selected_user}】額度通知**：每日預算 **NT$ {user_limit}** ｜ {date_label}已用 **NT$ {spent_on_target_date}** ｜ 剩餘可用 **NT$ {remain}**"
                     )
                 else:
                     st.info(
@@ -393,9 +429,9 @@ with main_tab1:
         st.write("")
 
         # ==========================================
-        # 步驟二：菜單挑選與購物車 (再來才是餐點)
+        # 步驟二：菜單挑選與購物車
         # ==========================================
-        st.subheader("🍽️ 步驟二：挑選餐點與確認結帳")
+        st.markdown("#### 🍽️ **步驟二：挑選餐點與確認結帳**")
         col_menu_left, col_cart_right = st.columns([3, 2], gap="large")
 
         with col_menu_left:
@@ -414,7 +450,7 @@ with main_tab1:
                         else:
                             categories = sorted(list(set(d["category"] for d in dishes)))
                             for cat in categories:
-                                st.markdown(f"#### 🏷️ {cat}")
+                                st.markdown(f"##### 🏷️ {cat}")
                                 cat_dishes = [d for d in dishes if d["category"] == cat]
                                 dish_cols = st.columns(3)
 
@@ -429,7 +465,7 @@ with main_tab1:
                                                 except Exception:
                                                     pass
 
-                                            st.markdown(f"**{dish['name']}**")
+                                            st.markdown(f"### {dish['name']}")
 
                                             # 大小碗規格
                                             has_large = (
@@ -441,7 +477,7 @@ with main_tab1:
 
                                             if has_large:
                                                 chosen_size = st.radio(
-                                                    "分量規格：",
+                                                    "規格分量：",
                                                     options=["小碗", "大碗"],
                                                     format_func=lambda x: f"{x} (NT$ {dish['price'] if x == '小碗' else dish['price_large']})",
                                                     key=f"size_{dish['id']}",
@@ -454,7 +490,7 @@ with main_tab1:
                                                 )
                                             else:
                                                 st.markdown(
-                                                    f"<span style='color:#dc2626; font-weight:bold; font-size:1.1rem;'>NT$ {dish['price']}</span>",
+                                                    f"<span class='price-badge'>NT$ {dish['price']}</span>",
                                                     unsafe_allow_html=True,
                                                 )
 
@@ -468,12 +504,12 @@ with main_tab1:
                                                     if o.strip()
                                                 ]
                                                 chosen_option = st.selectbox(
-                                                    "選擇麵類：",
+                                                    "🍜 選擇麵類：",
                                                     options=option_list,
                                                     key=f"opt_{dish['id']}",
                                                 )
 
-                                            # 加量加價
+                                            # 加量需求
                                             extra_types = (
                                                 dish.get("extra_type") or ""
                                             ).strip()
@@ -492,7 +528,7 @@ with main_tab1:
                                                     else " (免費)"
                                                 )
                                                 chosen_extra = st.selectbox(
-                                                    "加量需求：",
+                                                    "🍚 加量需求：",
                                                     options=extra_choices,
                                                     format_func=lambda x: f"{x}{price_tag if x != '正常' else ''}",
                                                     key=f"extra_{dish['id']}",
@@ -507,13 +543,14 @@ with main_tab1:
 
                                             if add_price > 0:
                                                 st.caption(
-                                                    f"單份總計：NT$ {final_item_price}"
+                                                    f"單份總額：NT$ {final_item_price}"
                                                 )
 
                                             if st.button(
                                                 "＋ 點選加入",
                                                 key=f"btn_add_{dish['id']}",
                                                 use_container_width=True,
+                                                type="secondary",
                                             ):
                                                 spec_parts = []
                                                 if chosen_size:
@@ -548,127 +585,129 @@ with main_tab1:
                                 st.write("")
 
         with col_cart_right:
-            st.markdown(f"#### 🛒 購物清單 (預訂日：{target_date_str})")
+            with st.container(border=True):
+                st.markdown(f"#### 🛒 **點餐清單 (預訂日：{target_date_str})**")
 
-            cart_total = 0
+                cart_total = 0
 
-            if not st.session_state.cart:
-                st.caption("購物車內暫無品項，請點選左側餐點「＋ 點選加入」。")
-            else:
-                for item_key, item_data in list(st.session_state.cart.items()):
-                    subtotal = item_data["price"] * item_data["qty"]
-                    cart_total += subtotal
+                if not st.session_state.cart:
+                    st.caption("🛒 購物清單暫無品項，請點選左側餐點「＋ 點選加入」。")
+                else:
+                    for item_key, item_data in list(st.session_state.cart.items()):
+                        subtotal = item_data["price"] * item_data["qty"]
+                        cart_total += subtotal
 
-                    c_name, c_qty, c_del = st.columns([3, 2, 1])
-                    with c_name:
-                        st.write(f"**{item_data['name']}**")
-                        st.caption(
-                            f"{item_data['store']} ｜ ${item_data['price']} × {item_data['qty']}"
-                        )
-                    with c_qty:
-                        q1, q2 = st.columns(2)
-                        if q1.button("－", key=f"minus_{item_key}"):
-                            item_data["qty"] -= 1
-                            if item_data["qty"] <= 0:
+                        c_name, c_qty, c_del = st.columns([3, 2, 1])
+                        with c_name:
+                            st.write(f"**{item_data['name']}**")
+                            st.caption(
+                                f"{item_data['store']} ｜ ${item_data['price']} × {item_data['qty']}"
+                            )
+                        with c_qty:
+                            q1, q2 = st.columns(2)
+                            if q1.button("－", key=f"minus_{item_key}"):
+                                item_data["qty"] -= 1
+                                if item_data["qty"] <= 0:
+                                    del st.session_state.cart[item_key]
+                                st.rerun()
+                            if q2.button("＋", key=f"plus_{item_key}"):
+                                item_data["qty"] += 1
+                                st.rerun()
+                        with c_del:
+                            if st.button("🗑️", key=f"del_{item_key}"):
                                 del st.session_state.cart[item_key]
-                            st.rerun()
-                        if q2.button("＋", key=f"plus_{item_key}"):
-                            item_data["qty"] += 1
-                            st.rerun()
-                    with c_del:
-                        if st.button("🗑️", key=f"del_{item_key}"):
-                            del st.session_state.cart[item_key]
-                            st.rerun()
+                                st.rerun()
 
-                st.divider()
-                st.markdown(
-                    f"### 本台應付金額：<span style='color:#dc2626;'>NT$ {cart_total}</span>",
-                    unsafe_allow_html=True,
+                    st.divider()
+                    st.markdown(
+                        f"### 本次應付總額：<span class='price-badge'>NT$ {cart_total}</span>",
+                        unsafe_allow_html=True,
+                    )
+
+                    if st.button("🧹 清空購物清單", use_container_width=True):
+                        st.session_state.cart = {}
+                        st.rerun()
+
+                order_note = st.text_input(
+                    "📝 中餐需求備註：", placeholder="例如：少油、不要酸菜、麵硬"
                 )
 
-                if st.button("🧹 清空這台平板的點單", use_container_width=True):
-                    st.session_state.cart = {}
-                    st.rerun()
-
-            order_note = st.text_input(
-                "中餐需求備註：", placeholder="例如：少油、不要酸菜、麵硬"
-            )
-
-            # 預算嚴格檢查
-            is_over_budget = False
-            if has_selected_user and user_limit > 0:
-                if cart_total > remain:
-                    is_over_budget = True
-                    over_amount = cart_total - remain
-                    st.error(
-                        f"⛔ **超出預算限制**：本次金額 (NT$ {cart_total}) 已超過 {target_date_str} 剩餘額度 (NT$ {remain})！超額 **NT$ {over_amount}**。\n\n請刪減餐點品項後再送出！"
-                    )
-
-            btn_submit_label = f"✅ 確認送出【{target_date_str}】中餐訂單"
-            if st.button(
-                btn_submit_label,
-                type="primary",
-                use_container_width=True,
-            ):
-                if not has_selected_user:
-                    st.error("❗ 請先於最上方「步驟一」下拉選單選擇「人員姓名」後再送出訂單！")
-                elif not st.session_state.cart:
-                    st.error("❗ 購物車目前尚無任何餐點，請先在左側挑選餐點並點擊「＋ 點選加入」！")
-                elif is_over_budget:
-                    st.error(f"❌ 訂單金額已超出 {target_date_str} 預算上限，系統已嚴格禁止送出！")
-                else:
-                    current_hms = datetime.now().strftime("%H:%M:%S")
-                    order_time_str = f"{target_date_str} {current_hms}"
-
-                    conn = get_db_connection()
-                    c = conn.cursor()
-
-                    stores_in_cart = set(
-                        item["store"] for item in st.session_state.cart.values()
-                    )
-                    summary_list = []
-                    for s in stores_in_cart:
-                        sub_items = [
-                            item
-                            for item in st.session_state.cart.values()
-                            if item["store"] == s
-                        ]
-                        sub_total = sum(i["price"] * i["qty"] for i in sub_items)
-                        summary_str = ", ".join(
-                            [f"{i['name']}x{i['qty']}" for i in sub_items]
-                        )
-                        summary_list.append(f"【{s}】{summary_str}")
-                        c.execute(
-                            """
-                            INSERT INTO orders (name, user_name, store_name, time, items, total, note)
-                            VALUES (?, ?, ?, ?, ?, ?, ?)
-                        """,
-                            (
-                                selected_user,
-                                selected_user,
-                                s,
-                                order_time_str,
-                                summary_str,
-                                sub_total,
-                                order_note,
-                            ),
+                # 預算嚴格檢查
+                is_over_budget = False
+                if has_selected_user and user_limit > 0:
+                    if cart_total > remain:
+                        is_over_budget = True
+                        over_amount = cart_total - remain
+                        st.error(
+                            f"⛔ **超出預算限制**：本次金額 (NT$ {cart_total}) 已超過 {target_date_str} 剩餘額度 (NT$ {remain})！超額 **NT$ {over_amount}**。\n\n請刪減餐點品項後再送出！"
                         )
 
-                    conn.commit()
-                    conn.close()
+                st.write("")
+                btn_submit_label = f"✅ 確認送出【{target_date_str}】中餐訂單"
+                if st.button(
+                    btn_submit_label,
+                    type="primary",
+                    use_container_width=True,
+                ):
+                    if not has_selected_user:
+                        st.error("❗ 請先於最上方「步驟一」下拉選單選擇「人員姓名」後再送出訂單！")
+                    elif not st.session_state.cart:
+                        st.error("❗ 購物清單目前尚無任何餐點，請先在左側挑選餐點並點擊「＋ 點選加入」！")
+                    elif is_over_budget:
+                        st.error(f"❌ 訂單金額已超出 {target_date_str} 預算上限，系統已嚴格禁止送出！")
+                    else:
+                        current_hms = datetime.now().strftime("%H:%M:%S")
+                        order_time_str = f"{target_date_str} {current_hms}"
 
-                    # 寫入完成狀態旗標與最後訂單摘要
-                    st.session_state.order_completed = True
-                    st.session_state.last_order_info = {
-                        "user": selected_user,
-                        "date": target_date_str,
-                        "items": " ； ".join(summary_list),
-                        "total": cart_total,
-                        "note": order_note,
-                        "time": order_time_str,
-                    }
-                    st.session_state.cart = {}
-                    st.rerun()
+                        conn = get_db_connection()
+                        c = conn.cursor()
+
+                        stores_in_cart = set(
+                            item["store"] for item in st.session_state.cart.values()
+                        )
+                        summary_list = []
+                        for s in stores_in_cart:
+                            sub_items = [
+                                item
+                                for item in st.session_state.cart.values()
+                                if item["store"] == s
+                            ]
+                            sub_total = sum(i["price"] * i["qty"] for i in sub_items)
+                            summary_str = ", ".join(
+                                [f"{i['name']}x{i['qty']}" for i in sub_items]
+                            )
+                            summary_list.append(f"【{s}】{summary_str}")
+                            c.execute(
+                                """
+                                INSERT INTO orders (name, user_name, store_name, time, items, total, note)
+                                VALUES (?, ?, ?, ?, ?, ?, ?)
+                            """,
+                                (
+                                    selected_user,
+                                    selected_user,
+                                    s,
+                                    order_time_str,
+                                    summary_str,
+                                    sub_total,
+                                    order_note,
+                                ),
+                            )
+
+                        conn.commit()
+                        conn.close()
+
+                        # 寫入完成狀態旗標與最後訂單摘要
+                        st.session_state.order_completed = True
+                        st.session_state.last_order_info = {
+                            "user": selected_user,
+                            "date": target_date_str,
+                            "items": " ； ".join(summary_list),
+                            "total": cart_total,
+                            "note": order_note,
+                            "time": order_time_str,
+                        }
+                        st.session_state.cart = {}
+                        st.rerun()
 
 # ------------------------------------------
 # 分頁 2: 中餐明細管理與修改
