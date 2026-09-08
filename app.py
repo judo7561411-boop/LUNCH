@@ -47,18 +47,34 @@ st.markdown(
         display: inline-block;
         margin-bottom: 6px;
     }
+    .status-paid {
+        background-color: #dcfce7;
+        color: #15803d;
+        padding: 3px 8px;
+        border-radius: 6px;
+        font-weight: 600;
+        font-size: 0.9rem;
+    }
+    .status-unpaid {
+        background-color: #fee2e2;
+        color: #b91c1c;
+        padding: 3px 8px;
+        border-radius: 6px;
+        font-weight: 600;
+        font-size: 0.9rem;
+    }
     </style>
 """,
     unsafe_allow_html=True,
 )
 
 # ==========================================
-# 1. 資料庫連線工廠與自動升級初始化 (多人平板互通防撞)
+# 1. 資料庫連線工廠與自動升級初始化 (支援付款狀態)
 # ==========================================
 
 
 def get_db_connection():
-    """取得資料庫連線：30秒逾時等待 + WAL 模式，保障多台平板同時讀寫互通不衝突"""
+    """取得資料庫連線：30秒逾時等待 + WAL 模式"""
     conn = sqlite3.connect(DB_NAME, timeout=30.0, check_same_thread=False)
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA journal_mode=WAL;")
@@ -105,6 +121,7 @@ def init_db():
     """
     )
 
+    # 訂單紀錄表 (新增 is_paid 欄位：0 未付款，1 已付款)
     c.execute(
         """
         CREATE TABLE IF NOT EXISTS orders (
@@ -115,11 +132,19 @@ def init_db():
             time TEXT NOT NULL,
             items TEXT NOT NULL,
             total INTEGER NOT NULL,
-            note TEXT
+            note TEXT,
+            is_paid INTEGER DEFAULT 0
         )
     """
     )
 
+    # 自動升級 orders 資料表欄位 (防錯機制)
+    c.execute("PRAGMA table_info(orders)")
+    order_cols = [col[1] for col in c.fetchall()]
+    if "is_paid" not in order_cols:
+        c.execute("ALTER TABLE orders ADD COLUMN is_paid INTEGER DEFAULT 0")
+
+    # 確保菜單欄位齊全
     c.execute("PRAGMA table_info(menu)")
     menu_cols = [col[1] for col in c.fetchall()]
     if "category" not in menu_cols:
@@ -137,6 +162,7 @@ def init_db():
     if "image_url" not in menu_cols:
         c.execute("ALTER TABLE menu ADD COLUMN image_url TEXT DEFAULT ''")
 
+    # 寫入預設店家
     c.execute("SELECT COUNT(*) FROM stores")
     if c.fetchone()[0] == 0:
         c.executemany(
@@ -164,6 +190,7 @@ def init_db():
             default_dishes,
         )
 
+    # 寫入預設人員
     c.execute("SELECT COUNT(*) FROM users")
     if c.fetchone()[0] == 0:
         c.executemany(
@@ -183,7 +210,7 @@ def init_db():
 init_db()
 
 # ==========================================
-# 2. 輔助函式與跨平板資料讀取
+# 2. 輔助函式與收款狀態管理核心
 # ==========================================
 
 
@@ -236,14 +263,8 @@ def update_store_name(old_name, new_name):
     c = conn.cursor()
     try:
         c.execute("UPDATE stores SET name = ? WHERE name = ?", (new_name, old_name))
-        c.execute(
-            "UPDATE menu SET store_name = ? WHERE store_name = ?",
-            (new_name, old_name),
-        )
-        c.execute(
-            "UPDATE orders SET store_name = ? WHERE store_name = ?",
-            (new_name, old_name),
-        )
+        c.execute("UPDATE menu SET store_name = ? WHERE store_name = ?", (new_name, old_name))
+        c.execute("UPDATE orders SET store_name = ? WHERE store_name = ?", (new_name, old_name))
         conn.commit()
         return True, "店家名稱修改成功！"
     except sqlite3.IntegrityError:
@@ -277,7 +298,6 @@ def update_menu_item(dish_id, category, name, price, price_large, options, extra
 
 
 def get_user_spent_by_date(user_name, target_date_str):
-    """即時統計特定人員在指定日期的總訂購金額 (跨所有平板累計)"""
     conn = get_db_connection()
     c = conn.cursor()
     c.execute(
@@ -292,17 +312,27 @@ def get_user_spent_by_date(user_name, target_date_str):
     return res if res else 0
 
 
-def update_order_item(order_id, user_name, items, total, note):
+def update_order_item(order_id, user_name, items, total, note, is_paid):
     conn = get_db_connection()
     c = conn.cursor()
     c.execute(
         """
         UPDATE orders 
-        SET user_name = ?, name = ?, items = ?, total = ?, note = ?
+        SET user_name = ?, name = ?, items = ?, total = ?, note = ?, is_paid = ?
         WHERE id = ?
     """,
-        (user_name, user_name, items, total, note, order_id),
+        (user_name, user_name, items, total, note, is_paid, order_id),
     )
+    conn.commit()
+    conn.close()
+
+
+def toggle_payment_status(order_id, current_status):
+    """切換單筆訂單付款狀態 (0 -> 1 或 1 -> 0)"""
+    new_status = 1 if current_status == 0 else 0
+    conn = get_db_connection()
+    c = conn.cursor()
+    c.execute("UPDATE orders SET is_paid = ? WHERE id = ?", (new_status, order_id))
     conn.commit()
     conn.close()
 
@@ -366,7 +396,7 @@ def import_menu_backup(json_str):
 
 
 # ==========================================
-# 3. Session State 狀態初始化 (每台裝置獨立)
+# 3. Session State 狀態初始化
 # ==========================================
 if "cart" not in st.session_state:
     st.session_state.cart = {}
@@ -381,10 +411,10 @@ local_ip = get_local_ip()
 with st.sidebar:
     st.header("📶 連線狀態")
     st.success("✅ 多台平板資料即時互通中")
-    st.caption("每台平板獨立操作點餐購物車，送出訂單後立即同步於中央資料庫！")
+    st.caption("每台裝置皆為獨立點餐畫面，送出訂單後立即同步於後台收款系統。")
 
 main_tab1, main_tab2, main_tab3, main_tab4 = st.tabs(
-    ["🛒 我要點餐(含預訂)", "📊 中餐明細管理與修改", "👥 人員名單管理", "⚙️ 店家與菜單維護"]
+    ["🛒 我要點餐(含預訂)", "📊 中餐明細與收款確認", "👥 人員名單管理", "⚙️ 店家與菜單維護"]
 )
 
 # ------------------------------------------
@@ -403,7 +433,7 @@ with main_tab1:
             if info.get('note'):
                 st.markdown(f"* **備註需求**：{info.get('note')}")
             st.markdown(f"### 應付總額：<span class='price-badge'>NT$ {info.get('total', 0)}</span>", unsafe_allow_html=True)
-            st.caption(f"下單完成時間：{info.get('time', '')} ｜ 資料庫已安全同步存檔")
+            st.caption(f"下單完成時間：{info.get('time', '')} ｜ 資料庫已安全同步存檔（預設狀態：待付款）")
 
         st.write("")
         col_btn1, col_btn2 = st.columns([1, 2])
@@ -452,7 +482,6 @@ with main_tab1:
                 i["price"] * i["qty"] for i in st.session_state.cart.values()
             )
 
-            # 跨平板額度計算：即時從資料庫統計該員本日在所有裝置已點總額
             if has_selected_user:
                 user_limit = user_limit_map.get(selected_user, 0)
                 spent_on_target_date = get_user_spent_by_date(selected_user, target_date_str)
@@ -462,7 +491,7 @@ with main_tab1:
                     actual_available = max(0, remain - current_cart_total)
                     date_label = "今日" if target_date_str == date.today().strftime("%Y-%m-%d") else f"【{target_date_str}】"
                     st.warning(
-                        f"💳 **【{selected_user}】額度通知**：每日上限 **NT$ {user_limit}** ｜ {date_label}所有平板已累計 **NT$ {spent_on_target_date}** ｜ 今日總剩餘 **NT$ {remain}** ｜ 本台還可點 **NT$ {actual_available}**"
+                        f"💳 **【{selected_user}】額度通知**：每日上限 **NT$ {user_limit}** ｜ {date_label}已累計 **NT$ {spent_on_target_date}** ｜ 今日總剩餘 **NT$ {remain}** ｜ 本台還可點 **NT$ {actual_available}**"
                     )
                 else:
                     actual_available = 999999
@@ -723,8 +752,8 @@ with main_tab1:
                             summary_list.append(f"【{s}】{summary_str}")
                             c.execute(
                                 """
-                                INSERT INTO orders (name, user_name, store_name, time, items, total, note)
-                                VALUES (?, ?, ?, ?, ?, ?, ?)
+                                INSERT INTO orders (name, user_name, store_name, time, items, total, note, is_paid)
+                                VALUES (?, ?, ?, ?, ?, ?, ?, 0)
                             """,
                                 (
                                     selected_user,
@@ -753,18 +782,18 @@ with main_tab1:
                         st.rerun()
 
 # ------------------------------------------
-# 分頁 2: 中餐明細管理與修改 (跨平板即時同步查核)
+# 分頁 2: 中餐明細與收款確認 (核心升級：每人付款收錢確認)
 # ------------------------------------------
 with main_tab2:
-    st.subheader("📊 每日中餐明細查詢、編輯修改與匯出 (跨裝置即時同步)")
+    st.subheader("📊 每日中餐明細與每人付款收錢確認")
 
-    col_date, col_refresh, col_summary = st.columns([1.5, 1, 2.5], gap="medium")
+    col_date, col_refresh = st.columns([2, 1], gap="medium")
 
     with col_date:
         query_date = st.date_input(
-            "📅 選擇欲管理之日期：",
+            "📅 選擇欲對帳之日期：",
             value=date.today(),
-            help="點選日曆圖示可切換查詢、修改今天或未來預訂日期的訂單",
+            help="點選日曆圖示可切換查詢今天或預訂日期的收款狀態",
             key="query_date_picker",
         )
         query_date_str = query_date.strftime("%Y-%m-%d")
@@ -772,15 +801,14 @@ with main_tab2:
     with col_refresh:
         st.write(" ")
         st.write(" ")
-        # 跨平板即時同步手動刷新按鈕
-        if st.button("🔄 即時同步最新點單", use_container_width=True):
+        if st.button("🔄 即時同步最新收款狀態", use_container_width=True):
             st.rerun()
 
     conn = get_db_connection()
     c = conn.cursor()
     c.execute(
         """
-        SELECT id, user_name, store_name, time, items, total, note
+        SELECT id, user_name, store_name, time, items, total, note, is_paid
         FROM orders
         WHERE time LIKE ?
         ORDER BY id DESC
@@ -791,21 +819,32 @@ with main_tab2:
     conn.close()
 
     total_revenue = sum(r["total"] for r in rows) if rows else 0
+    total_paid = sum(r["total"] for r in rows if r["is_paid"] == 1) if rows else 0
+    total_unpaid = total_revenue - total_paid
+    paid_count = sum(1 for r in rows if r["is_paid"] == 1)
     total_orders_count = len(rows)
 
-    with col_summary:
-        m1, m2 = st.columns(2)
+    # ==========================================
+    # 收款對帳儀表板 (已收、未收、應收總計)
+    # ==========================================
+    with st.container(border=True):
+        m1, m2, m3, m4 = st.columns(4)
         with m1:
-            st.metric(label=f"【{query_date_str}】中餐總金額", value=f"NT$ {total_revenue}")
+            st.metric(label=f"【{query_date_str}】應收總額", value=f"NT$ {total_revenue}")
         with m2:
-            st.metric(label=f"【{query_date_str}】訂單總筆數", value=f"{total_orders_count} 筆")
+            st.metric(label="✅ 已收到金額", value=f"NT$ {total_paid}", delta=f"{paid_count} 筆已付")
+        with m3:
+            st.metric(label="⏳ 尚未收齊金額", value=f"NT$ {total_unpaid}", delta=f"{total_orders_count - paid_count} 筆未付", delta_color="inverse")
+        with m4:
+            collect_rate = f"{(total_paid / total_revenue * 100):.1f}%" if total_revenue > 0 else "100%"
+            st.metric(label="📈 收款達成率", value=collect_rate)
 
     st.divider()
 
     if rows:
         col_t_title, col_btn = st.columns([3, 2])
         with col_t_title:
-            st.markdown(f"#### 📋 {query_date_str} 所有平板送出之訂單列表")
+            st.markdown(f"#### 📋 {query_date_str} 訂單收費列表 (支援快速點選標記)")
 
         with col_btn:
             output = io.StringIO()
@@ -819,9 +858,11 @@ with main_tab2:
                     "點餐明細",
                     "金額 (NTD)",
                     "備註",
+                    "付款狀態",
                 ]
             )
             for r in rows:
+                pay_str = "已付款" if r.get("is_paid", 0) == 1 else "未付款"
                 writer.writerow(
                     [
                         r["id"],
@@ -831,16 +872,17 @@ with main_tab2:
                         r["items"],
                         r["total"],
                         r["note"],
+                        pay_str,
                     ]
                 )
             writer.writerow([])
             writer.writerow(
-                ["", "", "", "", f"{query_date_str} 中餐總金額合計", total_revenue, ""]
+                ["", "", "", "", f"{query_date_str} 中餐總金額合計", total_revenue, f"已收: {total_paid} / 未收: {total_unpaid}", ""]
             )
 
             csv_bytes = ("\ufeff" + output.getvalue()).encode("utf-8")
             st.download_button(
-                label=f"📥 匯出【{query_date_str}】中餐 CSV 報表",
+                label=f"📥 匯出【{query_date_str}】對帳 CSV 報表",
                 data=csv_bytes,
                 file_name=f"lunch_orders_{query_date_str}.csv",
                 mime="text/csv",
@@ -850,64 +892,99 @@ with main_tab2:
 
         all_user_names = [u["name"] for u in get_all_users()]
 
+        # 逐筆訂單明細與收款切換卡片
         for r in rows:
-            with st.expander(
-                f"🧾 單號 #{r['id']} ｜ {r['user_name']} ｜ {r['store_name']} ｜ NT$ {r['total']} ｜ {r['time']}"
-            ):
-                with st.form(f"edit_order_form_{r['id']}"):
-                    st.markdown("**✏️ 編輯修改此筆訂單內容**")
-                    oc1, oc2 = st.columns([1, 1])
-                    with oc1:
-                        default_user_idx = (
-                            all_user_names.index(r["user_name"])
-                            if r["user_name"] in all_user_names
-                            else 0
-                        )
-                        edit_order_user = st.selectbox(
-                            "點餐人員：",
-                            options=all_user_names if all_user_names else [r["user_name"]],
-                            index=default_user_idx,
-                            key=f"eou_{r['id']}",
-                        )
-                        edit_order_total = st.number_input(
-                            "訂單金額 (NTD)：",
-                            min_value=0,
-                            step=5,
-                            value=r["total"],
-                            key=f"eot_{r['id']}",
-                        )
-                    with oc2:
-                        edit_order_items = st.text_input(
-                            "點餐明細內容：",
-                            value=r["items"],
-                            key=f"eoi_{r['id']}",
-                        )
-                        edit_order_note = st.text_input(
-                            "需求備註：",
-                            value=r["note"] if r["note"] else "",
-                            key=f"eon_{r['id']}",
-                        )
+            is_paid = r.get("is_paid", 0) == 1
+            status_html = (
+                "<span class='status-paid'>✅ 已付款</span>"
+                if is_paid
+                else "<span class='status-unpaid'>⏳ 待收款</span>"
+            )
 
-                    btn_save_order, _ = st.columns([1, 2])
-                    with btn_save_order:
-                        if st.form_submit_button("💾 儲存修改此訂單", type="primary", use_container_width=True):
-                            update_order_item(
-                                r["id"],
-                                edit_order_user,
-                                edit_order_items.strip(),
-                                edit_order_total,
-                                edit_order_note.strip(),
+            with st.container(border=True):
+                c_info, c_action = st.columns([3, 1])
+
+                with c_info:
+                    st.markdown(
+                        f"**單號 #{r['id']} ｜ 👤 {r['user_name']} ｜ 🏪 {r['store_name']} ｜ 金額：<span style='color:#dc2626; font-weight:bold;'>NT$ {r['total']}</span> ｜ {status_html}**",
+                        unsafe_allow_html=True,
+                    )
+                    st.caption(f"餐點明細：{r['items']}")
+                    if r.get("note"):
+                        st.caption(f"備註：{r['note']}")
+                    st.caption(f"下單時間：{r['time']}")
+
+                with c_action:
+                    # 一鍵切換付款狀態按鈕
+                    btn_text = "標記為【未付款】" if is_paid else "💰 標記為【已付款】"
+                    btn_type = "secondary" if is_paid else "primary"
+                    if st.button(btn_text, key=f"pay_toggle_{r['id']}", use_container_width=True, type=btn_type):
+                        toggle_payment_status(r["id"], r.get("is_paid", 0))
+                        st.rerun()
+
+                # 提供詳細修改折疊區塊
+                with st.expander("✏️ 修改此筆訂單明細內容 / 刪除"):
+                    with st.form(f"edit_order_form_{r['id']}"):
+                        oc1, oc2 = st.columns([1, 1])
+                        with oc1:
+                            default_user_idx = (
+                                all_user_names.index(r["user_name"])
+                                if r["user_name"] in all_user_names
+                                else 0
                             )
-                            st.success(f"訂單 #{r['id']} 修改完成！")
-                            st.rerun()
+                            edit_order_user = st.selectbox(
+                                "點餐人員：",
+                                options=all_user_names if all_user_names else [r["user_name"]],
+                                index=default_user_idx,
+                                key=f"eou_{r['id']}",
+                            )
+                            edit_order_total = st.number_input(
+                                "訂單金額 (NTD)：",
+                                min_value=0,
+                                step=5,
+                                value=r["total"],
+                                key=f"eot_{r['id']}",
+                            )
+                            edit_paid_status = st.selectbox(
+                                "付款狀態：",
+                                options=[0, 1],
+                                format_func=lambda x: "已付款" if x == 1 else "未付款",
+                                index=1 if is_paid else 0,
+                                key=f"eop_{r['id']}",
+                            )
+                        with oc2:
+                            edit_order_items = st.text_input(
+                                "點餐明細內容：",
+                                value=r["items"],
+                                key=f"eoi_{r['id']}",
+                            )
+                            edit_order_note = st.text_input(
+                                "需求備註：",
+                                value=r["note"] if r["note"] else "",
+                                key=f"eon_{r['id']}",
+                            )
 
-                if st.button("❌ 取消 / 刪除此筆訂單", key=f"del_order_{r['id']}", type="secondary"):
-                    delete_order_item(r["id"])
-                    st.warning(f"訂單 #{r['id']} 已成功取消！")
-                    st.rerun()
+                        btn_save_order, _ = st.columns([1, 2])
+                        with btn_save_order:
+                            if st.form_submit_button("💾 儲存修改內容", type="primary", use_container_width=True):
+                                update_order_item(
+                                    r["id"],
+                                    edit_order_user,
+                                    edit_order_items.strip(),
+                                    edit_order_total,
+                                    edit_order_note.strip(),
+                                    edit_paid_status,
+                                )
+                                st.success(f"訂單 #{r['id']} 修改完成！")
+                                st.rerun()
+
+                    if st.button("❌ 刪除此筆訂單", key=f"del_order_{r['id']}", type="secondary"):
+                        delete_order_item(r["id"])
+                        st.warning(f"訂單 #{r['id']} 已成功刪除！")
+                        st.rerun()
 
     else:
-        st.info(f"💡 【{query_date_str}】查無任何中餐點單紀錄。可切換其他日期查看或進行預訂。")
+        st.info(f"💡 【{query_date_str}】查無任何中餐點單紀錄。")
 
 # ------------------------------------------
 # 分頁 3: 人員名單管理
