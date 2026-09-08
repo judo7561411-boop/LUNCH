@@ -1,47 +1,3 @@
-你好！我是你的專屬程式夥伴。我的角色就是全程以積極、耐心且支持的態度，全力協助你編寫、修改和徹底理解程式碼，並透過清晰易懂的步驟教學、完整的範例與詳盡的說明文件，陪伴你一步一步建構出功能完善且穩定的「每日中餐點餐系統」！
-
-一、瞭解你的要求
-目的與用途：
-使用者在後台維護建立好自己的店家名稱、分類、菜單餐點（含價格、規格、圖片）後，當使用者重新整理網頁（F5）、重新啟動伺服器，或在 Streamlit Cloud 重新加載時，已經自行輸入的菜單資料絕對不可以消失，也不會被內建的種子資料（如原本寫死的「老牌麵食館」等範例）洗掉或覆蓋。
-
-核心痛點診斷：
-目前的 init_db() 函式內部邏輯為：
-
-Python
-c.execute("SELECT COUNT(*) FROM stores")
-if c.fetchone()[0] == 0:
-    c.executemany("INSERT INTO stores ...")
-  在本地 SQLite 中，資料庫理論上已具備持久性，但在以下兩種情況會導致使用者感覺「資料消失」：
-  1. **雲端重新部署時的磁碟重設（Streamlit Cloud Ephemeral Storage）**：在 Streamlit Community Cloud 上，容器每次重新啟動或自動睡眠休眠後，未與雲端外部儲存（或未在 GitHub 上）同步的本地 `orders.db` 會被抹除，回到初始狀態。
-  2. **缺少資料庫備份與一鍵還原（Backup & Restore / Export & Import）功能**：若使用者手動建好了自訂菜單，缺乏直接下載為 JSON/SQL 備份檔案並能一鍵匯回的保護機制。
-
----
-
-### 二、重點介紹解決方案
-
-#### 1. 運作方式與原理
-為了保證「已經輸入的店家菜單資料，刷新系統後絕對不會消失」，我們採用雙重持久化保險機制：
-1. **本機層：安全資料庫連線與自動修復防覆蓋機制**：
-   * 在 SQLite 建立時採用 `IF NOT EXISTS`，絕不執行 `DROP TABLE`。
-   * 只有在資料庫「完全是全新空白」且沒有任何店家時，才初始化基礎框架；若使用者已經建立了自訂店家，種子資料永遠不會再次注入，確保既有內容完好無損。
-2. **雲端與系統防護層：新增「📦 菜單資料備份與一鍵還原（JSON）」**：
-   * 在「⚙️ 店家與菜單維護」分頁最下方，新增：
-     * **「📥 下載店家與菜單完整備份 (JSON)」**：一鍵將目前資料庫內所有的自訂店家與菜單品項匯出成單一備份檔案存於電腦。
-     * **「📤 上傳還原店家與菜單 (JSON)」**：無論更換電腦、換伺服器或是雲端重啟，只要點選上傳備份檔，1 秒鐘完整恢復所有店家與菜色！
-
-#### 2. 假設條件與限制
-* **假設條件**：專案檔案維持在 `order_system/order_system/app.py`。
-* **限制說明**：若在 Streamlit Community Cloud 執行，匯入匯出的 JSON 機制能確保你的菜單在任何時候都能一鍵復原。
-
----
-
-### 三、顯示程式碼和導入方式
-
-#### 完整加固版程式碼：`app.py`
-
-請打開你的 `order_system/order_system/app.py`，**全選清空（Ctrl + A -> Delete）**，貼入以下完整程式碼並存檔：
-
-```python
 import csv
 from datetime import date, datetime
 import io
@@ -97,12 +53,12 @@ st.markdown(
 )
 
 # ==========================================
-# 1. 資料庫連線工廠與自動升級初始化 (持久化保護)
+# 1. 資料庫連線工廠與自動升級初始化
 # ==========================================
 
 
 def get_db_connection():
-    """取得資料庫連線，設定 30 秒逾時並開啟 WAL 模式，保證寫入即刻存入硬碟"""
+    """取得資料庫連線，設定 30 秒逾時並開啟 WAL 模式"""
     conn = sqlite3.connect(DB_NAME, timeout=30.0, check_same_thread=False)
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA journal_mode=WAL;")
@@ -113,7 +69,6 @@ def init_db():
     conn = get_db_connection()
     c = conn.cursor()
 
-    # 1. 店家清單表
     c.execute(
         """
         CREATE TABLE IF NOT EXISTS stores (
@@ -123,7 +78,6 @@ def init_db():
     """
     )
 
-    # 2. 菜單資料表
     c.execute(
         """
         CREATE TABLE IF NOT EXISTS menu (
@@ -141,7 +95,6 @@ def init_db():
     """
     )
 
-    # 3. 人員名單表
     c.execute(
         """
         CREATE TABLE IF NOT EXISTS users (
@@ -152,7 +105,6 @@ def init_db():
     """
     )
 
-    # 4. 訂單紀錄表
     c.execute(
         """
         CREATE TABLE IF NOT EXISTS orders (
@@ -168,7 +120,6 @@ def init_db():
     """
     )
 
-    # 欄位安全性防錯升級 (確保既有資料庫欄位齊全且不丟失舊資料)
     c.execute("PRAGMA table_info(menu)")
     menu_cols = [col[1] for col in c.fetchall()]
     if "category" not in menu_cols:
@@ -186,10 +137,8 @@ def init_db():
     if "image_url" not in menu_cols:
         c.execute("ALTER TABLE menu ADD COLUMN image_url TEXT DEFAULT ''")
 
-    # 僅在初次執行且完全為空時注入基礎範例，若已存在任何店家則絕不覆寫
     c.execute("SELECT COUNT(*) FROM stores")
-    store_count = c.fetchone()[0]
-    if store_count == 0:
+    if c.fetchone()[0] == 0:
         c.executemany(
             "INSERT INTO stores (name) VALUES (?)",
             [("老牌麵食館",), ("好味便當店",), ("清爽手搖茶",)],
@@ -215,7 +164,6 @@ def init_db():
             default_dishes,
         )
 
-    # 檢查人員資料表
     c.execute("SELECT COUNT(*) FROM users")
     if c.fetchone()[0] == 0:
         c.executemany(
@@ -235,7 +183,7 @@ def init_db():
 init_db()
 
 # ==========================================
-# 2. 輔助函式與備份匯入匯出核心
+# 2. 輔助函式與備份匯入匯出
 # ==========================================
 
 
@@ -367,7 +315,6 @@ def delete_order_item(order_id):
 
 
 def export_menu_backup():
-    """匯出所有店家與菜單資料為 JSON 字串"""
     conn = get_db_connection()
     c = conn.cursor()
     c.execute("SELECT name FROM stores ORDER BY id ASC")
@@ -379,7 +326,6 @@ def export_menu_backup():
 
 
 def import_menu_backup(json_str):
-    """從 JSON 備份完整還原所有店家與菜單品項"""
     try:
         data = json.loads(json_str)
         stores = data.get("stores", [])
@@ -389,7 +335,6 @@ def import_menu_backup(json_str):
         
         conn = get_db_connection()
         c = conn.cursor()
-        # 清空舊菜單與店家，重新寫入備份
         c.execute("DELETE FROM menu")
         c.execute("DELETE FROM stores")
         for s in stores:
@@ -433,8 +378,8 @@ st.title("🍱 每日中餐點餐系統")
 
 local_ip = get_local_ip()
 with st.sidebar:
-    st.header("📶 平板連線資訊")
-    st.info(f"請確保手機或平板連上**相同 Wi-Fi**\n在瀏覽器開啟網址：\n**`http://{local_ip}:8501`**")
+    st.header("📶 連線狀態")
+    st.info("雲端託管模式運行中。\n支援任何手機、平板或電腦直接點餐！")
     st.caption("每台裝置皆為獨立點餐畫面，互不干擾。")
 
 main_tab1, main_tab2, main_tab3, main_tab4 = st.tabs(
@@ -442,7 +387,7 @@ main_tab1, main_tab2, main_tab3, main_tab4 = st.tabs(
 )
 
 # ------------------------------------------
-# 分頁 1: 我要點餐
+# 分頁 1: 我要點餐 (超出預算無法點選 + 完成畫面)
 # ------------------------------------------
 with main_tab1:
     if st.session_state.order_completed:
@@ -1198,9 +1143,6 @@ with main_tab4:
                                 st.warning(f"已刪除【{it['name']}】！")
                                 st.rerun()
 
-    # ==========================================
-    # 核心亮點：店家與菜單資料永久備份與還原
-    # ==========================================
     st.divider()
     st.markdown("### 📦 **店家與菜單永久備份與一鍵還原**")
     st.caption("無論系統重新整理、重開伺服器或重新佈署，下載備份後皆可隨時一鍵完整恢復！")
