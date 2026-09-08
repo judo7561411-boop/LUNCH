@@ -19,12 +19,11 @@ IMAGE_DIR = "static/images"
 os.makedirs(IMAGE_DIR, exist_ok=True)
 
 # ==========================================
-# 注入視覺優化 CSS (提高手機平板點選體驗)
+# 注入視覺優化 CSS
 # ==========================================
 st.markdown(
     """
     <style>
-    /* 強化主要按鈕與觸控範圍 */
     .stButton button {
         border-radius: 8px;
         font-weight: bold;
@@ -33,13 +32,11 @@ st.markdown(
     .stButton button:active {
         transform: scale(0.98);
     }
-    /* 餐點卡片外觀增強 */
     div[data-testid="stVerticalBlockBorderWrapper"] {
         border-radius: 12px;
         box-shadow: 0 2px 8px rgba(0,0,0,0.05);
         background-color: #ffffff;
     }
-    /* 標籤字體優化 */
     .price-badge {
         background-color: #fee2e2;
         color: #dc2626;
@@ -123,7 +120,6 @@ def init_db():
     """
     )
 
-    # 確保資料表欄位齊全
     c.execute("PRAGMA table_info(menu)")
     menu_cols = [col[1] for col in c.fetchall()]
     if "category" not in menu_cols:
@@ -141,7 +137,6 @@ def init_db():
     if "image_url" not in menu_cols:
         c.execute("ALTER TABLE menu ADD COLUMN image_url TEXT DEFAULT ''")
 
-    # 寫入預設店家
     c.execute("SELECT COUNT(*) FROM stores")
     if c.fetchone()[0] == 0:
         c.executemany(
@@ -149,7 +144,6 @@ def init_db():
             [("老牌麵食館",), ("好味便當店",), ("清爽手搖茶",)],
         )
 
-    # 寫入預設菜單品項
     c.execute("SELECT COUNT(*) FROM menu")
     if c.fetchone()[0] == 0:
         default_dishes = [
@@ -172,7 +166,6 @@ def init_db():
             default_dishes,
         )
 
-    # 寫入預設人員名單
     c.execute("SELECT COUNT(*) FROM users")
     if c.fetchone()[0] == 0:
         c.executemany(
@@ -346,7 +339,7 @@ main_tab1, main_tab2, main_tab3, main_tab4 = st.tabs(
 )
 
 # ------------------------------------------
-# 分頁 1: 我要點餐 (視覺點選方便與易懂版)
+# 分頁 1: 我要點餐 (超出預算品項無法點選版)
 # ------------------------------------------
 with main_tab1:
     if st.session_state.order_completed:
@@ -374,7 +367,7 @@ with main_tab1:
 
     else:
         # ==========================================
-        # 步驟一：設定用餐日期與姓名 (視覺卡片化)
+        # 步驟一：設定用餐日期與點餐人姓名
         # ==========================================
         with st.container(border=True):
             st.markdown("#### 👤 **步驟一：設定用餐日期與點餐人姓名**")
@@ -409,27 +402,35 @@ with main_tab1:
                 selected_user and selected_user != "-- 請選擇人員姓名 --"
             )
 
+            # 計算購物車已佔用總額
+            current_cart_total = sum(
+                i["price"] * i["qty"] for i in st.session_state.cart.values()
+            )
+
             if has_selected_user:
                 user_limit = user_limit_map.get(selected_user, 0)
                 spent_on_target_date = get_user_spent_by_date(selected_user, target_date_str)
 
                 if user_limit > 0:
                     remain = max(0, user_limit - spent_on_target_date)
+                    actual_available = max(0, remain - current_cart_total)
                     date_label = "今日" if target_date_str == date.today().strftime("%Y-%m-%d") else f"【{target_date_str}】"
                     st.warning(
-                        f"💳 **【{selected_user}】額度通知**：每日預算 **NT$ {user_limit}** ｜ {date_label}已用 **NT$ {spent_on_target_date}** ｜ 剩餘可用 **NT$ {remain}**"
+                        f"💳 **【{selected_user}】額度通知**：每日上限 **NT$ {user_limit}** ｜ {date_label}已用 **NT$ {spent_on_target_date}** ｜ 今日總剩餘 **NT$ {remain}** ｜ 購物車後還可點 **NT$ {actual_available}**"
                     )
                 else:
+                    actual_available = 999999  # 無限制
                     st.info(
-                        f"ℹ️ **【{selected_user}】不限消費額度**（{target_date_str} 已累積中餐金額 NT$ {spent_on_target_date}）"
+                        f"ℹ️ **【{selected_user}】不限消費額度**（{target_date_str} 已累積金額 NT$ {spent_on_target_date}）"
                     )
             else:
-                st.info("💡 請先於上方選取您的姓名，確認個人額度後即可開始挑選下方餐點！")
+                actual_available = 0
+                st.info("💡 請先於上方選取您的姓名，以確認個人額度並解鎖下方餐點點選！")
 
         st.write("")
 
         # ==========================================
-        # 步驟二：菜單挑選與購物車
+        # 步驟二：菜單挑選與購物車 (超出預算品項無法點選)
         # ==========================================
         st.markdown("#### 🍽️ **步驟二：挑選餐點與確認結帳**")
         col_menu_left, col_cart_right = st.columns([3, 2], gap="large")
@@ -457,7 +458,6 @@ with main_tab1:
                                 for d_idx, dish in enumerate(cat_dishes):
                                     with dish_cols[d_idx % 3]:
                                         with st.container(border=True):
-                                            # 沒放圖片就不顯示
                                             img_source = (dish.get("image_url") or "").strip()
                                             if img_source:
                                                 try:
@@ -467,7 +467,6 @@ with main_tab1:
 
                                             st.markdown(f"### {dish['name']}")
 
-                                            # 大小碗規格
                                             has_large = (
                                                 dish.get("price_large")
                                                 and dish["price_large"] > 0
@@ -494,7 +493,6 @@ with main_tab1:
                                                     unsafe_allow_html=True,
                                                 )
 
-                                            # 麵類規格
                                             opt_str = (dish.get("options") or "").strip()
                                             chosen_option = ""
                                             if opt_str:
@@ -509,7 +507,6 @@ with main_tab1:
                                                     key=f"opt_{dish['id']}",
                                                 )
 
-                                            # 加量需求
                                             extra_types = (
                                                 dish.get("extra_type") or ""
                                             ).strip()
@@ -546,11 +543,28 @@ with main_tab1:
                                                     f"單份總額：NT$ {final_item_price}"
                                                 )
 
+                                            # ==========================================
+                                            # 核心防呆邏輯：超出預算品項無法點選
+                                            # ==========================================
+                                            btn_disabled = False
+                                            btn_label = "＋ 點選加入"
+
+                                            if not has_selected_user:
+                                                btn_disabled = True
+                                                btn_label = "🔒 請先在上方選取姓名"
+                                            elif user_limit > 0:
+                                                # 若單品價格超過剩餘可用額度，直接反灰鎖定
+                                                if final_item_price > actual_available:
+                                                    btn_disabled = True
+                                                    diff = final_item_price - actual_available
+                                                    btn_label = f"⛔ 超出預算 (差 ${diff})"
+
                                             if st.button(
-                                                "＋ 點選加入",
+                                                btn_label,
                                                 key=f"btn_add_{dish['id']}",
                                                 use_container_width=True,
-                                                type="secondary",
+                                                disabled=btn_disabled,
+                                                type="secondary" if not btn_disabled else "primary",
                                             ):
                                                 spec_parts = []
                                                 if chosen_size:
@@ -611,8 +625,12 @@ with main_tab1:
                                     del st.session_state.cart[item_key]
                                 st.rerun()
                             if q2.button("＋", key=f"plus_{item_key}"):
-                                item_data["qty"] += 1
-                                st.rerun()
+                                # 點擊 + 增加數量前，也防呆檢查額度
+                                if user_limit > 0 and (actual_available - item_data["price"]) < 0:
+                                    st.toast("⚠️ 增加此份數將超過剩餘額度！")
+                                else:
+                                    item_data["qty"] += 1
+                                    st.rerun()
                         with c_del:
                             if st.button("🗑️", key=f"del_{item_key}"):
                                 del st.session_state.cart[item_key]
@@ -632,16 +650,6 @@ with main_tab1:
                     "📝 中餐需求備註：", placeholder="例如：少油、不要酸菜、麵硬"
                 )
 
-                # 預算嚴格檢查
-                is_over_budget = False
-                if has_selected_user and user_limit > 0:
-                    if cart_total > remain:
-                        is_over_budget = True
-                        over_amount = cart_total - remain
-                        st.error(
-                            f"⛔ **超出預算限制**：本次金額 (NT$ {cart_total}) 已超過 {target_date_str} 剩餘額度 (NT$ {remain})！超額 **NT$ {over_amount}**。\n\n請刪減餐點品項後再送出！"
-                        )
-
                 st.write("")
                 btn_submit_label = f"✅ 確認送出【{target_date_str}】中餐訂單"
                 if st.button(
@@ -653,8 +661,6 @@ with main_tab1:
                         st.error("❗ 請先於最上方「步驟一」下拉選單選擇「人員姓名」後再送出訂單！")
                     elif not st.session_state.cart:
                         st.error("❗ 購物清單目前尚無任何餐點，請先在左側挑選餐點並點擊「＋ 點選加入」！")
-                    elif is_over_budget:
-                        st.error(f"❌ 訂單金額已超出 {target_date_str} 預算上限，系統已嚴格禁止送出！")
                     else:
                         current_hms = datetime.now().strftime("%H:%M:%S")
                         order_time_str = f"{target_date_str} {current_hms}"
@@ -696,7 +702,6 @@ with main_tab1:
                         conn.commit()
                         conn.close()
 
-                        # 寫入完成狀態旗標與最後訂單摘要
                         st.session_state.order_completed = True
                         st.session_state.last_order_info = {
                             "user": selected_user,
