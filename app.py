@@ -53,12 +53,12 @@ st.markdown(
 )
 
 # ==========================================
-# 1. 資料庫連線工廠與自動升級初始化
+# 1. 資料庫連線工廠與自動升級初始化 (多人平板互通防撞)
 # ==========================================
 
 
 def get_db_connection():
-    """取得資料庫連線，設定 30 秒逾時並開啟 WAL 模式"""
+    """取得資料庫連線：30秒逾時等待 + WAL 模式，保障多台平板同時讀寫互通不衝突"""
     conn = sqlite3.connect(DB_NAME, timeout=30.0, check_same_thread=False)
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA journal_mode=WAL;")
@@ -183,7 +183,7 @@ def init_db():
 init_db()
 
 # ==========================================
-# 2. 輔助函式與備份匯入匯出
+# 2. 輔助函式與跨平板資料讀取
 # ==========================================
 
 
@@ -277,6 +277,7 @@ def update_menu_item(dish_id, category, name, price, price_large, options, extra
 
 
 def get_user_spent_by_date(user_name, target_date_str):
+    """即時統計特定人員在指定日期的總訂購金額 (跨所有平板累計)"""
     conn = get_db_connection()
     c = conn.cursor()
     c.execute(
@@ -365,7 +366,7 @@ def import_menu_backup(json_str):
 
 
 # ==========================================
-# 3. Session State 狀態初始化
+# 3. Session State 狀態初始化 (每台裝置獨立)
 # ==========================================
 if "cart" not in st.session_state:
     st.session_state.cart = {}
@@ -379,15 +380,15 @@ st.title("🍱 每日中餐點餐系統")
 local_ip = get_local_ip()
 with st.sidebar:
     st.header("📶 連線狀態")
-    st.info("雲端託管模式運行中。\n支援任何手機、平板或電腦直接點餐！")
-    st.caption("每台裝置皆為獨立點餐畫面，互不干擾。")
+    st.success("✅ 多台平板資料即時互通中")
+    st.caption("每台平板獨立操作點餐購物車，送出訂單後立即同步於中央資料庫！")
 
 main_tab1, main_tab2, main_tab3, main_tab4 = st.tabs(
     ["🛒 我要點餐(含預訂)", "📊 中餐明細管理與修改", "👥 人員名單管理", "⚙️ 店家與菜單維護"]
 )
 
 # ------------------------------------------
-# 分頁 1: 我要點餐 (超出預算無法點選 + 完成畫面)
+# 分頁 1: 我要點餐
 # ------------------------------------------
 with main_tab1:
     if st.session_state.order_completed:
@@ -402,7 +403,7 @@ with main_tab1:
             if info.get('note'):
                 st.markdown(f"* **備註需求**：{info.get('note')}")
             st.markdown(f"### 應付總額：<span class='price-badge'>NT$ {info.get('total', 0)}</span>", unsafe_allow_html=True)
-            st.caption(f"下單完成時間：{info.get('time', '')} ｜ 資料庫已安全存檔")
+            st.caption(f"下單完成時間：{info.get('time', '')} ｜ 資料庫已安全同步存檔")
 
         st.write("")
         col_btn1, col_btn2 = st.columns([1, 2])
@@ -451,6 +452,7 @@ with main_tab1:
                 i["price"] * i["qty"] for i in st.session_state.cart.values()
             )
 
+            # 跨平板額度計算：即時從資料庫統計該員本日在所有裝置已點總額
             if has_selected_user:
                 user_limit = user_limit_map.get(selected_user, 0)
                 spent_on_target_date = get_user_spent_by_date(selected_user, target_date_str)
@@ -460,16 +462,16 @@ with main_tab1:
                     actual_available = max(0, remain - current_cart_total)
                     date_label = "今日" if target_date_str == date.today().strftime("%Y-%m-%d") else f"【{target_date_str}】"
                     st.warning(
-                        f"💳 **【{selected_user}】額度通知**：每日上限 **NT$ {user_limit}** ｜ {date_label}已用 **NT$ {spent_on_target_date}** ｜ 今日總剩餘 **NT$ {remain}** ｜ 購物車後還可點 **NT$ {actual_available}**"
+                        f"💳 **【{selected_user}】額度通知**：每日上限 **NT$ {user_limit}** ｜ {date_label}所有平板已累計 **NT$ {spent_on_target_date}** ｜ 今日總剩餘 **NT$ {remain}** ｜ 本台還可點 **NT$ {actual_available}**"
                     )
                 else:
                     actual_available = 999999
                     st.info(
-                        f"ℹ️ **【{selected_user}】不限消費額度**（{target_date_str} 已累積金額 NT$ {spent_on_target_date}）"
+                        f"ℹ️ **【{selected_user}】不限消費額度**（{target_date_str} 累積金額 NT$ {spent_on_target_date}）"
                     )
             else:
                 actual_available = 0
-                st.info("💡 請先於上方選取您的姓名，以確認個人額度並解鎖下方餐點點選！")
+                st.info("💡 請先於上方選取您的姓名，確認個人額度後即可開始點餐！")
 
         st.write("")
 
@@ -751,12 +753,12 @@ with main_tab1:
                         st.rerun()
 
 # ------------------------------------------
-# 分頁 2: 中餐明細管理與修改
+# 分頁 2: 中餐明細管理與修改 (跨平板即時同步查核)
 # ------------------------------------------
 with main_tab2:
-    st.subheader("📊 每日中餐明細查詢、編輯修改與匯出")
+    st.subheader("📊 每日中餐明細查詢、編輯修改與匯出 (跨裝置即時同步)")
 
-    col_date, col_summary = st.columns([1, 2], gap="large")
+    col_date, col_refresh, col_summary = st.columns([1.5, 1, 2.5], gap="medium")
 
     with col_date:
         query_date = st.date_input(
@@ -766,6 +768,13 @@ with main_tab2:
             key="query_date_picker",
         )
         query_date_str = query_date.strftime("%Y-%m-%d")
+
+    with col_refresh:
+        st.write(" ")
+        st.write(" ")
+        # 跨平板即時同步手動刷新按鈕
+        if st.button("🔄 即時同步最新點單", use_container_width=True):
+            st.rerun()
 
     conn = get_db_connection()
     c = conn.cursor()
@@ -796,7 +805,7 @@ with main_tab2:
     if rows:
         col_t_title, col_btn = st.columns([3, 2])
         with col_t_title:
-            st.markdown(f"#### 📋 {query_date_str} 訂單列表 (支援即時修改與取消)")
+            st.markdown(f"#### 📋 {query_date_str} 所有平板送出之訂單列表")
 
         with col_btn:
             output = io.StringIO()
