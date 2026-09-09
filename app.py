@@ -1,142 +1,61 @@
 import streamlit as st
 import pandas as pd
 import requests
+import json
+import time
 from datetime import date
 
 st.set_page_config(page_title="中餐點餐系統", page_icon="🍱", layout="wide")
 
-# Google Apps Script 部署網址（負責資料永久回寫）
 APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbw0UEIp80umbupbDQkMQAa5-3Z4HQp01r9VH_Zr-0nYnPzXv6jgY_gKYFyScn7e2Lrj/exec"
 SHEET_ID = "1mHnXoG-Duq45EvwZTRVuq86rsK8T5DA9NkLnOi30wuM"
 
-# CSS 注入：友善大字體與排版
+# CSS 注入
 st.markdown("""
 <style>
-    html, body, [class*="css"] {
-        font-size: 20px;
-    }
+    html, body, [class*="css"] { font-size: 20px; }
     .user-btn button {
-        width: 100% !important;
-        min-height: 80px !important;
-        font-size: 24px !important;
-        font-weight: bold !important;
-        border-radius: 14px !important;
-        margin-bottom: 12px !important;
+        width: 100% !important; min-height: 80px !important;
+        font-size: 24px !important; font-weight: bold !important;
+        border-radius: 14px !important; margin-bottom: 12px !important;
         border: 2px solid #CBD5E1 !important;
     }
-    .user-btn button:hover {
-        border-color: #2563EB !important;
-        background-color: #EFF6FF !important;
-    }
+    .user-btn button:hover { border-color: #2563EB !important; background-color: #EFF6FF !important; }
     .food-card {
-        background-color: #FFFFFF;
-        border: 2px solid #E2E8F0;
-        border-radius: 16px;
-        padding: 16px;
-        margin-bottom: 16px;
+        background-color: #FFFFFF; border: 2px solid #E2E8F0;
+        border-radius: 16px; padding: 16px; margin-bottom: 16px;
         box-shadow: 0 2px 4px rgba(0,0,0,0.05);
     }
     .cart-item {
-        background-color: #F8FAFC;
-        border-left: 6px solid #2563EB;
-        padding: 12px 18px;
-        border-radius: 8px;
-        margin-bottom: 10px;
-        font-size: 20px;
+        background-color: #F8FAFC; border-left: 6px solid #2563EB;
+        padding: 12px 18px; border-radius: 8px; margin-bottom: 10px; font-size: 20px;
     }
     .budget-banner {
-        background-color: #EFF6FF;
-        border: 2px solid #3B82F6;
-        border-radius: 14px;
-        padding: 16px 20px;
-        font-size: 24px;
-        font-weight: bold;
-        color: #1E3A8A;
-        margin-bottom: 20px;
+        background-color: #EFF6FF; border: 2px solid #3B82F6;
+        border-radius: 14px; padding: 16px 20px; font-size: 24px;
+        font-weight: bold; color: #1E3A8A; margin-bottom: 20px;
     }
     .big-success {
-        background-color: #DEF7EC;
-        border: 3px solid #31C48D;
-        border-radius: 16px;
-        padding: 24px;
-        font-size: 30px;
-        font-weight: bold;
-        color: #03543F;
-        text-align: center;
-        margin-top: 20px;
+        background-color: #DEF7EC; border: 3px solid #31C48D;
+        border-radius: 16px; padding: 24px; font-size: 30px;
+        font-weight: bold; color: #03543F; text-align: center; margin-top: 20px;
     }
     .money-visual-board {
-        background-color: #FFFFFF;
-        border: 3px dashed #60A5FA;
-        border-radius: 16px;
-        padding: 20px;
-        margin-top: 14px;
-        margin-bottom: 14px;
+        background-color: #FFFFFF; border: 3px dashed #60A5FA;
+        border-radius: 16px; padding: 20px; margin-top: 14px; margin-bottom: 14px;
     }
     .money-group-row {
-        display: flex;
-        flex-wrap: wrap;
-        align-items: center;
-        gap: 14px;
-        margin-bottom: 14px;
-        padding-bottom: 10px;
-        border-bottom: 1px solid #F1F5F9;
+        display: flex; flex-wrap: wrap; align-items: center; gap: 14px;
+        margin-bottom: 14px; padding-bottom: 10px; border-bottom: 1px solid #F1F5F9;
     }
 </style>
 """, unsafe_allow_html=True)
 
-# -------------------------------------------------------------
-# 純向量 SVG 實體貨幣圖卡（保證不破圖）
-# -------------------------------------------------------------
-SVG_100 = """
-<svg width="180" height="90" viewBox="0 0 180 90" xmlns="http://www.w3.org/2000/svg" style="border-radius:6px; box-shadow:2px 3px 6px rgba(0,0,0,0.3); margin:4px;">
-  <rect width="180" height="90" rx="6" fill="#C53030"/>
-  <rect x="4" y="4" width="172" height="82" rx="4" fill="none" stroke="#FED7D7" stroke-width="1.5" stroke-dasharray="4,2"/>
-  <circle cx="45" cy="45" r="22" fill="#9B2C2C"/>
-  <circle cx="45" cy="45" r="18" fill="none" stroke="#FEB2B2" stroke-width="1"/>
-  <text x="45" y="52" font-family="sans-serif" font-size="20" font-weight="bold" fill="#FED7D7" text-anchor="middle">100</text>
-  <text x="135" y="55" font-family="sans-serif" font-size="44" font-weight="900" fill="#FFFFFF" text-anchor="middle">100</text>
-  <text x="90" y="22" font-family="sans-serif" font-size="12" font-weight="bold" fill="#FED7D7" text-anchor="middle">中華民國中央銀行</text>
-  <text x="135" y="75" font-family="sans-serif" font-size="14" font-weight="bold" fill="#FEEBC8" text-anchor="middle">壹佰圓</text>
-</svg>
-"""
-
-SVG_50 = """
-<svg width="84" height="84" viewBox="0 0 84 84" xmlns="http://www.w3.org/2000/svg" style="filter: drop-shadow(2px 3px 4px rgba(0,0,0,0.35)); margin:4px;">
-  <circle cx="42" cy="42" r="40" fill="#D69E2E" stroke="#744210" stroke-width="2"/>
-  <circle cx="42" cy="42" r="34" fill="#ECC94B" stroke="#B7791F" stroke-width="1.5"/>
-  <circle cx="42" cy="42" r="26" fill="#D69E2E"/>
-  <text x="42" y="49" font-family="sans-serif" font-size="28" font-weight="900" fill="#5A3207" text-anchor="middle">50</text>
-  <text x="42" y="61" font-family="sans-serif" font-size="11" font-weight="bold" fill="#744210" text-anchor="middle">圓</text>
-</svg>
-"""
-
-SVG_10 = """
-<svg width="76" height="76" viewBox="0 0 76 76" xmlns="http://www.w3.org/2000/svg" style="filter: drop-shadow(2px 3px 4px rgba(0,0,0,0.3)); margin:4px;">
-  <circle cx="38" cy="38" r="36" fill="#A0AEC0" stroke="#4A5568" stroke-width="2"/>
-  <circle cx="38" cy="38" r="30" fill="#E2E8F0" stroke="#718096" stroke-width="1.5"/>
-  <text x="38" y="44" font-family="sans-serif" font-size="26" font-weight="900" fill="#2D3748" text-anchor="middle">10</text>
-  <text x="38" y="56" font-family="sans-serif" font-size="11" font-weight="bold" fill="#4A5568" text-anchor="middle">圓</text>
-</svg>
-"""
-
-SVG_5 = """
-<svg width="66" height="66" viewBox="0 0 66 66" xmlns="http://www.w3.org/2000/svg" style="filter: drop-shadow(2px 3px 4px rgba(0,0,0,0.3)); margin:4px;">
-  <circle cx="33" cy="33" r="31" fill="#CBD5E0" stroke="#718096" stroke-width="2"/>
-  <circle cx="33" cy="33" r="25" fill="#EDF2F7" stroke="#A0AEC0" stroke-width="1"/>
-  <text x="33" y="39" font-family="sans-serif" font-size="22" font-weight="900" fill="#2D3748" text-anchor="middle">5</text>
-  <text x="33" y="49" font-family="sans-serif" font-size="10" font-weight="bold" fill="#4A5568" text-anchor="middle">圓</text>
-</svg>
-"""
-
-SVG_1 = """
-<svg width="58" height="58" viewBox="0 0 58 58" xmlns="http://www.w3.org/2000/svg" style="filter: drop-shadow(2px 3px 4px rgba(0,0,0,0.3)); margin:4px;">
-  <circle cx="29" cy="29" r="27" fill="#DD6B20" stroke="#7B341E" stroke-width="2"/>
-  <circle cx="29" cy="29" r="21" fill="#ED8936" stroke="#9C4221" stroke-width="1"/>
-  <text x="29" y="35" font-family="sans-serif" font-size="20" font-weight="900" fill="#431407" text-anchor="middle">1</text>
-  <text x="29" y="45" font-family="sans-serif" font-size="10" font-weight="bold" fill="#652B19" text-anchor="middle">圓</text>
-</svg>
-"""
+SVG_100 = """<svg width="180" height="90" viewBox="0 0 180 90" xmlns="http://www.w3.org/2000/svg" style="border-radius:6px; box-shadow:2px 3px 6px rgba(0,0,0,0.3); margin:4px;"><rect width="180" height="90" rx="6" fill="#C53030"/><rect x="4" y="4" width="172" height="82" rx="4" fill="none" stroke="#FED7D7" stroke-width="1.5" stroke-dasharray="4,2"/><circle cx="45" cy="45" r="22" fill="#9B2C2C"/><circle cx="45" cy="45" r="18" fill="none" stroke="#FEB2B2" stroke-width="1"/><text x="45" y="52" font-family="sans-serif" font-size="20" font-weight="bold" fill="#FED7D7" text-anchor="middle">100</text><text x="135" y="55" font-family="sans-serif" font-size="44" font-weight="900" fill="#FFFFFF" text-anchor="middle">100</text><text x="90" y="22" font-family="sans-serif" font-size="12" font-weight="bold" fill="#FED7D7" text-anchor="middle">中華民國中央銀行</text><text x="135" y="75" font-family="sans-serif" font-size="14" font-weight="bold" fill="#FEEBC8" text-anchor="middle">壹佰圓</text></svg>"""
+SVG_50 = """<svg width="84" height="84" viewBox="0 0 84 84" xmlns="http://www.w3.org/2000/svg" style="filter: drop-shadow(2px 3px 4px rgba(0,0,0,0.35)); margin:4px;"><circle cx="42" cy="42" r="40" fill="#D69E2E" stroke="#744210" stroke-width="2"/><circle cx="42" cy="42" r="34" fill="#ECC94B" stroke="#B7791F" stroke-width="1.5"/><circle cx="42" cy="42" r="26" fill="#D69E2E"/><text x="42" y="49" font-family="sans-serif" font-size="28" font-weight="900" fill="#5A3207" text-anchor="middle">50</text><text x="42" y="61" font-family="sans-serif" font-size="11" font-weight="bold" fill="#744210" text-anchor="middle">圓</text></svg>"""
+SVG_10 = """<svg width="76" height="76" viewBox="0 0 76 76" xmlns="http://www.w3.org/2000/svg" style="filter: drop-shadow(2px 3px 4px rgba(0,0,0,0.3)); margin:4px;"><circle cx="38" cy="38" r="36" fill="#A0AEC0" stroke="#4A5568" stroke-width="2"/><circle cx="38" cy="38" r="30" fill="#E2E8F0" stroke="#718096" stroke-width="1.5"/><text x="38" y="44" font-family="sans-serif" font-size="26" font-weight="900" fill="#2D3748" text-anchor="middle">10</text><text x="38" y="56" font-family="sans-serif" font-size="11" font-weight="bold" fill="#4A5568" text-anchor="middle">圓</text></svg>"""
+SVG_5 = """<svg width="66" height="66" viewBox="0 0 66 66" xmlns="http://www.w3.org/2000/svg" style="filter: drop-shadow(2px 3px 4px rgba(0,0,0,0.3)); margin:4px;"><circle cx="33" cy="33" r="31" fill="#CBD5E0" stroke="#718096" stroke-width="2"/><circle cx="33" cy="33" r="25" fill="#EDF2F7" stroke="#A0AEC0" stroke-width="1"/><text x="33" y="39" font-family="sans-serif" font-size="22" font-weight="900" fill="#2D3748" text-anchor="middle">5</text><text x="33" y="49" font-family="sans-serif" font-size="10" font-weight="bold" fill="#4A5568" text-anchor="middle">圓</text></svg>"""
+SVG_1 = """<svg width="58" height="58" viewBox="0 0 58 58" xmlns="http://www.w3.org/2000/svg" style="filter: drop-shadow(2px 3px 4px rgba(0,0,0,0.3)); margin:4px;"><circle cx="29" cy="29" r="27" fill="#DD6B20" stroke="#7B341E" stroke-width="2"/><circle cx="29" cy="29" r="21" fill="#ED8936" stroke="#9C4221" stroke-width="1"/><text x="29" y="35" font-family="sans-serif" font-size="20" font-weight="900" fill="#431407" text-anchor="middle">1</text><text x="29" y="45" font-family="sans-serif" font-size="10" font-weight="bold" fill="#652B19" text-anchor="middle">圓</text></svg>"""
 
 REQUIRED_ORDER_COLS = [
     "訂單編號", "訂購日期", "員工編號", "員工姓名", "所屬部門", 
@@ -145,7 +64,8 @@ REQUIRED_ORDER_COLS = [
 
 def load_menu():
     try:
-        url = f"https://docs.google.com/spreadsheets/d/{SHEET_ID}/gviz/tq?tqx=out:csv&sheet=menu"
+        t = int(time.time())
+        url = f"https://docs.google.com/spreadsheets/d/{SHEET_ID}/gviz/tq?tqx=out:csv&sheet=menu&_t={t}"
         df = pd.read_csv(url)
         return df.dropna(subset=["餐點名稱"]) if "餐點名稱" in df.columns else df
     except:
@@ -153,15 +73,18 @@ def load_menu():
 
 def load_users():
     try:
-        url = f"https://docs.google.com/spreadsheets/d/{SHEET_ID}/gviz/tq?tqx=out:csv&sheet=users"
+        t = int(time.time())
+        url = f"https://docs.google.com/spreadsheets/d/{SHEET_ID}/gviz/tq?tqx=out:csv&sheet=users&_t={t}"
         df = pd.read_csv(url)
         return df.dropna(subset=["姓名"]) if "姓名" in df.columns else df
     except:
         return pd.DataFrame()
 
-def load_orders():
+# 加上防快取時間戳記，確保讀到最新 Google 試算表內容
+def load_all_orders():
+    t = int(time.time())
+    url = f"https://docs.google.com/spreadsheets/d/{SHEET_ID}/gviz/tq?tqx=out:csv&sheet=orders&_t={t}"
     try:
-        url = f"https://docs.google.com/spreadsheets/d/{SHEET_ID}/gviz/tq?tqx=out:csv&sheet=orders"
         raw_df = pd.read_csv(url, header=None)
         h_idx = 3
         for i in range(min(10, len(raw_df))):
@@ -196,15 +119,15 @@ def load_orders():
 
 def sync_to_google_sheet(payload):
     try:
-        resp = requests.post(APPS_SCRIPT_URL, json=payload, timeout=12)
-        return resp.status_code == 200
-    except:
-        return False
+        data_str = json.dumps(payload, ensure_ascii=False)
+        headers = {"Content-Type": "text/plain;charset=utf-8"}
+        resp = requests.post(APPS_SCRIPT_URL, data=data_str.encode('utf-8'), headers=headers, timeout=15, allow_redirects=True)
+        return True, resp.text
+    except Exception as e:
+        return False, str(e)
 
-# 每次進入皆重新從雲端抓取最新資料
 df_menu = load_menu()
 df_users = load_users()
-df_orders = load_orders()
 
 if "selected_user" not in st.session_state:
     st.session_state.selected_user = None
@@ -228,15 +151,22 @@ tab1, tab2, tab3, tab4 = st.tabs([
 # 分頁 1：友善點餐
 # -------------------------------------------------------------
 with tab1:
+    today_str = str(date.today())
     if st.session_state.order_finished:
-        st.markdown('<div class="big-success">🎉 點餐完成！資料已同步儲存至 Google 試算表！</div>', unsafe_allow_html=True)
+        st.markdown(f'<div class="big-success">🎉 點餐完成！資料已成功寫入 Google 試算表！</div>', unsafe_allow_html=True)
         st.write("")
-        if st.button("👉 幫下一位同仁點餐", type="primary"):
-            st.session_state.selected_user = None
-            st.session_state.user_limit = 0
-            st.session_state.cart = []
-            st.session_state.order_finished = False
-            st.rerun()
+        c_a, c_b = st.columns(2)
+        with c_a:
+            if st.button("👉 幫下一位同仁點餐", type="primary", use_container_width=True):
+                st.session_state.selected_user = None
+                st.session_state.user_limit = 0
+                st.session_state.cart = []
+                st.session_state.order_finished = False
+                st.rerun()
+        with c_b:
+            if st.button("📊 前往明細與對帳確認", use_container_width=True):
+                st.session_state.order_finished = False
+                st.rerun()
 
     elif st.session_state.selected_user is None:
         st.subheader("👉 第一步：請問你是誰？（點你的名字）")
@@ -307,8 +237,8 @@ with tab1:
                     new_rows = []
                     for it in st.session_state.cart:
                         new_rows.append({
-                            "訂單編號": f"ORD-{len(df_orders) + len(new_rows) + 1:03d}",
-                            "訂購日期": str(date.today()),
+                            "訂單編號": f"ORD-{int(time.time()) % 10000:04d}",
+                            "訂購日期": today_str,
                             "員工編號": "",
                             "員工姓名": u_name,
                             "所屬部門": user_dept,
@@ -321,11 +251,17 @@ with tab1:
                             "付款狀態": "未付款"
                         })
 
-                    with st.spinner("正在永久儲存至 Google 試算表..."):
-                        sync_to_google_sheet({"action": "append", "rows": new_rows})
-
-                    st.session_state.order_finished = True
-                    st.rerun()
+                    with st.spinner("正在寫入 Google 試算表中..."):
+                        ok, msg = sync_to_google_sheet({
+                            "action": "append",
+                            "date": today_str,
+                            "rows": new_rows
+                        })
+                        if not ok:
+                            st.error(f"寫入失敗：{msg}")
+                        else:
+                            st.session_state.order_finished = True
+                            st.rerun()
 
         st.write("---")
         st.subheader("👇 請挑選餐點：")
@@ -381,39 +317,39 @@ with tab1:
                             st.rerun()
 
 # -------------------------------------------------------------
-# 分頁 2：明細與對帳
+# 分頁 2：明細與對帳（即時無快取刷新）
 # -------------------------------------------------------------
 with tab2:
     st.subheader("📊 每日點餐明細與收款找零對帳")
 
-    col_q1, col_q2, col_q3 = st.columns([2, 1, 1])
-    with col_q1:
+    all_orders = load_all_orders()
+
+    c_q1, c_q2, c_q3 = st.columns([2, 1, 1])
+    with c_q1:
         query_date = st.date_input("選擇欲對帳或查詢的日期", value=date.today())
-    with col_q2:
-        show_all = st.checkbox("檢視所有歷史訂單", value=False)
-    with col_q3:
+    with c_q2:
+        filter_mode = st.radio("檢視模式", ["📅 依所選日期", "📋 顯示全部訂單"], horizontal=True)
+    with c_q3:
         st.write("")
-        if st.button("🔄 重新載入最新資料"):
+        if st.button("🔄 強制重新載入雲端資料", type="primary"):
             st.rerun()
 
-    for req in REQUIRED_ORDER_COLS:
-        if req not in df_orders.columns:
-            df_orders[req] = ""
-
-    if df_orders.empty:
+    if all_orders.empty:
         st.info("尚無任何訂單紀錄。請先在【🛒 友善大圖點餐】送出餐點。")
     else:
-        if show_all:
-            current_orders = df_orders.copy()
-            date_mask = pd.Series([True] * len(df_orders), index=df_orders.index)
+        q_str_dash = str(query_date).strip()
+        q_str_slash = q_str_dash.replace("-", "/")
+
+        if filter_mode == "📋 顯示全部訂單":
+            current_orders = all_orders.copy()
         else:
-            q_str = str(query_date).replace("-", "/")
-            d_col = df_orders["訂購日期"].astype(str).str.replace("-", "/")
-            date_mask = (d_col == q_str) | (df_orders["訂購日期"].astype(str) == str(query_date))
-            current_orders = df_orders[date_mask].copy()
+            # 兼容 2026-09-09 與 2026/09/09 兩種日期格式
+            d_series = all_orders["訂購日期"].astype(str).str.strip()
+            date_mask = (d_series == q_str_dash) | (d_series == q_str_slash) | (d_series.str.replace("-", "/") == q_str_slash)
+            current_orders = all_orders[date_mask].copy()
 
         if current_orders.empty:
-            st.info(f"【{query_date}】尚無點單紀錄。（若要檢視舊資料，請勾選上方「檢視所有歷史訂單」）")
+            st.warning(f"⚠️ 在【{query_date}】查無點單紀錄。（💡 提示：若剛剛送出的訂單日期格式不同，請點選上方【📋 顯示全部訂單】即可看到所有訂單！）")
         else:
             def parse_money(v):
                 try:
@@ -431,19 +367,19 @@ with tab2:
             unpaid_count = total_items - len(paid_orders)
 
             m1, m2, m3, m4 = st.columns(4)
-            m1.metric("查詢訂單總額", f"${total_money:,} 元")
+            m1.metric("當前檢視總額", f"${total_money:,} 元")
             m2.metric("總訂單數", f"{total_items} 筆")
             m3.metric("已收款總額", f"${paid_money:,} 元", f"{len(paid_orders)} 筆已收")
             m4.metric("待收餘額 (未收)", f"${unpaid_money:,} 元", f"{unpaid_count} 筆待收", delta_color="inverse")
 
             st.write("---")
 
-            # 現場找零輔助器（實體圖卡，看到幾個拿幾個）
+            # 現場找零輔助器
             with st.expander("💵 現場收款與【新臺幣實體貨幣】找零輔助器", expanded=True):
                 unpaid_list = current_orders[current_orders["付款狀態"] != "已付款"]
                 
                 if unpaid_list.empty:
-                    st.success("🎉 此檢視範圍內的所有訂單皆已全數收款完畢！")
+                    st.success("🎉 目前檢視範圍內的所有訂單皆已全數收款完畢！")
                 else:
                     user_options = unpaid_list["員工姓名"].dropna().unique().tolist()
                     calc_col1, calc_col2 = st.columns([1, 1])
@@ -521,7 +457,8 @@ with tab2:
                                         "user": target_user,
                                         "status": "已付款"
                                     })
-                                st.success(f"已完成 {target_user} 收款並同步至試算表！")
+                                st.success(f"已完成 {target_user} 收款！")
+                                time.sleep(1)
                                 st.rerun()
                         else:
                             st.error(f"⚠️ 還不夠喔！同仁還差 ${abs(change)} 元")
@@ -546,6 +483,7 @@ with tab2:
                                 "user": row_data.get("員工姓名", ""),
                                 "status": "未付款"
                             })
+                            time.sleep(1)
                             st.rerun()
                     else:
                         if st.button("🔴 未付款 (改已付)", key=f"status_btn_{row_idx}"):
@@ -555,6 +493,7 @@ with tab2:
                                 "user": row_data.get("員工姓名", ""),
                                 "status": "已付款"
                             })
+                            time.sleep(1)
                             st.rerun()
 
 # -------------------------------------------------------------
