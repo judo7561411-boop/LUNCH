@@ -14,12 +14,10 @@ conn = st.connection("gsheets", type=GSheetsConnection)
 # -------------------------------------------------------------
 @st.cache_data(ttl=0)
 def load_menu_data():
-    try:
-        df = conn.read(worksheet="店家菜單", ttl=0)
+    df = conn.read(worksheet="店家菜單", ttl=0)
+    if df is not None and not df.empty:
         df = df.dropna(subset=["餐點名稱"])
-        return df
-    except Exception as e:
-        return pd.DataFrame()
+    return df
 
 @st.cache_data(ttl=0)
 def load_users_data():
