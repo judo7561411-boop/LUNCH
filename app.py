@@ -10,7 +10,6 @@ st.set_page_config(page_title="中餐點餐系統", page_icon="🍱", layout="wi
 APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbw0UEIp80umbupbDQkMQAa5-3Z4HQp01r9VH_Zr-0nYnPzXv6jgY_gKYFyScn7e2Lrj/exec"
 SHEET_ID = "1mHnXoG-Duq45EvwZTRVuq86rsK8T5DA9NkLnOi30wuM"
 
-# CSS 注入
 st.markdown("""
 <style>
     html, body, [class*="css"] { font-size: 20px; }
@@ -80,8 +79,7 @@ def load_users():
     except:
         return pd.DataFrame()
 
-# 加上防快取時間戳記，確保讀到最新 Google 試算表內容
-def load_all_orders():
+def load_orders_from_sheet():
     t = int(time.time())
     url = f"https://docs.google.com/spreadsheets/d/{SHEET_ID}/gviz/tq?tqx=out:csv&sheet=orders&_t={t}"
     try:
@@ -126,9 +124,9 @@ def sync_to_google_sheet(payload):
     except Exception as e:
         return False, str(e)
 
-df_menu = load_menu()
-df_users = load_users()
-
+# 初始化狀態
+if "orders_data" not in st.session_state:
+    st.session_state.orders_data = load_orders_from_sheet()
 if "selected_user" not in st.session_state:
     st.session_state.selected_user = None
 if "user_limit" not in st.session_state:
@@ -137,6 +135,9 @@ if "cart" not in st.session_state:
     st.session_state.cart = []
 if "order_finished" not in st.session_state:
     st.session_state.order_finished = False
+
+df_menu = load_menu()
+df_users = load_users()
 
 st.title("🍱 中餐點餐與管理系統")
 
@@ -153,7 +154,7 @@ tab1, tab2, tab3, tab4 = st.tabs([
 with tab1:
     today_str = str(date.today())
     if st.session_state.order_finished:
-        st.markdown(f'<div class="big-success">🎉 點餐完成！資料已成功寫入 Google 試算表！</div>', unsafe_allow_html=True)
+        st.markdown(f'<div class="big-success">🎉 點餐完成！資料已同步儲存至 Google 試算表！</div>', unsafe_allow_html=True)
         st.write("")
         c_a, c_b = st.columns(2)
         with c_a:
@@ -235,9 +236,10 @@ with tab1:
                             user_dept = match_u["組別"].values[0]
 
                     new_rows = []
-                    for it in st.session_state.cart:
+                    current_len = len(st.session_state.orders_data)
+                    for i, it in enumerate(st.session_state.cart):
                         new_rows.append({
-                            "訂單編號": f"ORD-{int(time.time()) % 10000:04d}",
+                            "訂單編號": f"ORD-{current_len + i + 1:03d}",
                             "訂購日期": today_str,
                             "員工編號": "",
                             "員工姓名": u_name,
@@ -251,17 +253,19 @@ with tab1:
                             "付款狀態": "未付款"
                         })
 
-                    with st.spinner("正在寫入 Google 試算表中..."):
-                        ok, msg = sync_to_google_sheet({
+                    # 本地先接住，保證立刻可對帳
+                    new_df = pd.DataFrame(new_rows)
+                    st.session_state.orders_data = pd.concat([st.session_state.orders_data, new_df], ignore_index=True)
+
+                    # 寫入試算表
+                    with st.spinner("同步儲存至 Google 試算表..."):
+                        sync_to_google_sheet({
                             "action": "append",
-                            "date": today_str,
                             "rows": new_rows
                         })
-                        if not ok:
-                            st.error(f"寫入失敗：{msg}")
-                        else:
-                            st.session_state.order_finished = True
-                            st.rerun()
+
+                    st.session_state.order_finished = True
+                    st.rerun()
 
         st.write("---")
         st.subheader("👇 請挑選餐點：")
@@ -317,12 +321,10 @@ with tab1:
                             st.rerun()
 
 # -------------------------------------------------------------
-# 分頁 2：明細與對帳（即時無快取刷新）
+# 分頁 2：明細與對帳
 # -------------------------------------------------------------
 with tab2:
     st.subheader("📊 每日點餐明細與收款找零對帳")
-
-    all_orders = load_all_orders()
 
     c_q1, c_q2, c_q3 = st.columns([2, 1, 1])
     with c_q1:
@@ -331,8 +333,11 @@ with tab2:
         filter_mode = st.radio("檢視模式", ["📅 依所選日期", "📋 顯示全部訂單"], horizontal=True)
     with c_q3:
         st.write("")
-        if st.button("🔄 強制重新載入雲端資料", type="primary"):
+        if st.button("🔄 重新從雲端抓取", type="primary"):
+            st.session_state.orders_data = load_orders_from_sheet()
             st.rerun()
+
+    all_orders = st.session_state.orders_data.copy()
 
     if all_orders.empty:
         st.info("尚無任何訂單紀錄。請先在【🛒 友善大圖點餐】送出餐點。")
@@ -343,13 +348,12 @@ with tab2:
         if filter_mode == "📋 顯示全部訂單":
             current_orders = all_orders.copy()
         else:
-            # 兼容 2026-09-09 與 2026/09/09 兩種日期格式
             d_series = all_orders["訂購日期"].astype(str).str.strip()
             date_mask = (d_series == q_str_dash) | (d_series == q_str_slash) | (d_series.str.replace("-", "/") == q_str_slash)
             current_orders = all_orders[date_mask].copy()
 
         if current_orders.empty:
-            st.warning(f"⚠️ 在【{query_date}】查無點單紀錄。（💡 提示：若剛剛送出的訂單日期格式不同，請點選上方【📋 顯示全部訂單】即可看到所有訂單！）")
+            st.warning(f"⚠️ 在【{query_date}】查無點單紀錄。（可切換為「📋 顯示全部訂單」查看）")
         else:
             def parse_money(v):
                 try:
@@ -450,15 +454,16 @@ with tab2:
 
                             st.write("")
                             if st.button(f"✅ 確認收款完畢（將 {target_user} 設為已付款）", type="primary", use_container_width=True):
-                                with st.spinner("同步更新至 Google 試算表..."):
-                                    sync_to_google_sheet({
-                                        "action": "update_status",
-                                        "date": str(query_date),
-                                        "user": target_user,
-                                        "status": "已付款"
-                                    })
+                                target_indices = st.session_state.orders_data[st.session_state.orders_data["員工姓名"] == target_user].index
+                                st.session_state.orders_data.loc[target_indices, "付款狀態"] = "已付款"
+                                
+                                sync_to_google_sheet({
+                                    "action": "update_status",
+                                    "date": str(query_date),
+                                    "user": target_user,
+                                    "status": "已付款"
+                                })
                                 st.success(f"已完成 {target_user} 收款！")
-                                time.sleep(1)
                                 st.rerun()
                         else:
                             st.error(f"⚠️ 還不夠喔！同仁還差 ${abs(change)} 元")
@@ -477,23 +482,23 @@ with tab2:
                     cur_status = row_data.get("付款狀態", "未付款")
                     if cur_status == "已付款":
                         if st.button("🟢 已付款 (改未付)", key=f"status_btn_{row_idx}"):
+                            st.session_state.orders_data.loc[row_idx, "付款狀態"] = "未付款"
                             sync_to_google_sheet({
                                 "action": "update_status",
                                 "date": str(row_data.get("訂購日期", "")),
                                 "user": row_data.get("員工姓名", ""),
                                 "status": "未付款"
                             })
-                            time.sleep(1)
                             st.rerun()
                     else:
                         if st.button("🔴 未付款 (改已付)", key=f"status_btn_{row_idx}"):
+                            st.session_state.orders_data.loc[row_idx, "付款狀態"] = "已付款"
                             sync_to_google_sheet({
                                 "action": "update_status",
                                 "date": str(row_data.get("訂購日期", "")),
                                 "user": row_data.get("員工姓名", ""),
                                 "status": "已付款"
                             })
-                            time.sleep(1)
                             st.rerun()
 
 # -------------------------------------------------------------
