@@ -9,7 +9,7 @@ st.set_page_config(page_title="中餐點餐系統", page_icon="🍱", layout="wi
 
 APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbw0UEIp80umbupbDQkMQAa5-3Z4HQp01r9VH_Zr-0nYnPzXv6jgY_gKYFyScn7e2Lrj/exec"
 SHEET_ID = "1mHnXoG-Duq45EvwZTRVuq86rsK8T5DA9NkLnOi30wuM"
-ORDERS_GID = "1002"  # 精準鎖定您的 orders 分頁 gid
+ORDERS_GID = "1002"
 
 st.markdown("""
 <style>
@@ -36,42 +36,28 @@ st.markdown("""
         font-weight: bold; color: #1E3A8A; margin-bottom: 20px;
     }
     .over-limit-box {
-        background-color: #FDE8E8;
-        border: 3px solid #F98080;
-        border-radius: 18px;
-        padding: 26px;
-        font-size: 30px;
-        font-weight: bold;
-        color: #9B1C1C;
-        text-align: center;
-        margin-top: 20px;
-        margin-bottom: 25px;
+        background-color: #FDE8E8; border: 3px solid #F98080;
+        border-radius: 18px; padding: 26px; font-size: 30px;
+        font-weight: bold; color: #9B1C1C; text-align: center;
+        margin-top: 20px; margin-bottom: 25px;
     }
     .big-pay-box {
-        background-color: #DEF7EC;
-        border: 3px solid #31C48D;
-        border-radius: 18px;
-        padding: 26px;
-        font-size: 32px;
-        font-weight: bold;
-        color: #03543F;
-        text-align: center;
-        margin-top: 15px;
-        margin-bottom: 25px;
+        background-color: #DEF7EC; border: 3px solid #31C48D;
+        border-radius: 18px; padding: 26px; font-size: 32px;
+        font-weight: bold; color: #03543F; text-align: center;
+        margin-top: 15px; margin-bottom: 25px;
         box-shadow: 0 4px 6px rgba(0,0,0,0.05);
     }
     .big-next-btn button {
-        width: 100% !important;
-        min-height: 90px !important;
-        font-size: 32px !important;
-        font-weight: bold !important;
-        border-radius: 18px !important;
-        background-color: #EF4444 !important;
-        color: white !important;
-        box-shadow: 0 4px 6px rgba(0,0,0,0.1) !important;
+        width: 100% !important; min-height: 90px !important;
+        font-size: 32px !important; font-weight: bold !important;
+        border-radius: 18px !important; background-color: #EF4444 !important;
+        color: white !important; box-shadow: 0 4px 6px rgba(0,0,0,0.1) !important;
     }
-    .big-next-btn button:hover {
-        background-color: #DC2626 !important;
+    .big-next-btn button:hover { background-color: #DC2626 !important; }
+    .order-row-card {
+        background-color: #FFFFFF; border: 1.5px solid #E2E8F0;
+        border-radius: 12px; padding: 14px 18px; margin-bottom: 12px;
     }
     .money-visual-board {
         background-color: #FFFFFF; border: 3px dashed #60A5FA;
@@ -119,7 +105,6 @@ def load_users():
     except:
         return pd.DataFrame()
 
-# 使用精準 gid=1002 讀取 orders 分頁
 def load_orders_from_sheet():
     t = int(time.time())
     url = f"https://docs.google.com/spreadsheets/d/{SHEET_ID}/export?format=csv&gid={ORDERS_GID}&_t={t}"
@@ -179,6 +164,8 @@ if "order_finished" not in st.session_state:
     st.session_state.order_finished = False
 if "last_paid_amount" not in st.session_state:
     st.session_state.last_paid_amount = 0
+if "edit_order_id" not in st.session_state:
+    st.session_state.edit_order_id = None
 
 df_menu = load_menu()
 df_users = load_users()
@@ -347,57 +334,57 @@ with tab1:
                     st.session_state.order_finished = True
                     st.rerun()
 
-            st.write("---")
-            st.subheader("👇 請挑選餐點：")
+        st.write("---")
+        st.subheader("👇 請挑選餐點：")
 
-            available_menu = df_menu[df_menu["供應狀態"] == "供應中"] if "供應狀態" in df_menu.columns else df_menu
-            displayed_items = []
-            for _, row in available_menu.iterrows():
-                base_p = parse_price(row.get("單價", 0))
-                if u_limit > 0 and base_p > remaining_daily_budget:
-                    continue
-                displayed_items.append((row, base_p))
+        available_menu = df_menu[df_menu["供應狀態"] == "供應中"] if "供應狀態" in df_menu.columns else df_menu
+        displayed_items = []
+        for _, row in available_menu.iterrows():
+            base_p = parse_price(row.get("單價", 0))
+            if u_limit > 0 and base_p > remaining_daily_budget:
+                continue
+            displayed_items.append((row, base_p))
 
-            if not displayed_items:
-                st.warning("⚠️ 剩餘額度不足以再點其他餐點囉！若已挑選完畢，請點擊上方【✅ 我選好了，送出全部餐點！】。")
-            else:
-                cols = st.columns(2)
-                for idx, (m_row, base_p) in enumerate(displayed_items):
-                    item_name = m_row["餐點名稱"]
-                    with cols[idx % 2]:
-                        with st.container():
-                            st.markdown(f"""
-                            <div class="food-card">
-                                <h3 style="margin-top:0; color:#1E293B;">🍲 {item_name}</h3>
-                                <div style="font-size:20px; color:#475569; margin-bottom:8px;">基本價格：<b style="color:#059669;">${base_p} 元</b></div>
-                            </div>
-                            """, unsafe_allow_html=True)
-                            
-                            c_nd, c_ex = st.columns(2)
-                            with c_nd:
-                                nd_choice = st.selectbox("麵體", ["意麵", "冬粉", "泡飯", "雞絲麵", "王子麵", "烏龍麵 (+10元)"], key=f"nd_{idx}")
-                            with c_ex:
-                                ex_choice = st.radio("份量", ["不加麵", "要加麵 (+15元)"], horizontal=True, key=f"ex_{idx}")
+        if not displayed_items:
+            st.warning("⚠️ 剩餘額度不足以再點其他餐點囉！若已挑選完畢，請點擊上方【✅ 我選好了，送出全部餐點！】。")
+        else:
+            cols = st.columns(2)
+            for idx, (m_row, base_p) in enumerate(displayed_items):
+                item_name = m_row["餐點名稱"]
+                with cols[idx % 2]:
+                    with st.container():
+                        st.markdown(f"""
+                        <div class="food-card">
+                            <h3 style="margin-top:0; color:#1E293B;">🍲 {item_name}</h3>
+                            <div style="font-size:20px; color:#475569; margin-bottom:8px;">基本價格：<b style="color:#059669;">${base_p} 元</b></div>
+                        </div>
+                        """, unsafe_allow_html=True)
+                        
+                        c_nd, c_ex = st.columns(2)
+                        with c_nd:
+                            nd_choice = st.selectbox("麵體", ["意麵", "冬粉", "泡飯", "雞絲麵", "王子麵", "烏龍麵 (+10元)"], key=f"nd_{idx}")
+                        with c_ex:
+                            ex_choice = st.radio("份量", ["不加麵", "要加麵 (+15元)"], horizontal=True, key=f"ex_{idx}")
 
-                            extra_nd = 10 if "烏龍麵" in nd_choice else 0
-                            extra_ex = 15 if ex_choice == "要加麵 (+15元)" else 0
-                            final_price = base_p + extra_nd + extra_ex
+                        extra_nd = 10 if "烏龍麵" in nd_choice else 0
+                        extra_ex = 15 if ex_choice == "要加麵 (+15元)" else 0
+                        final_price = base_p + extra_nd + extra_ex
 
-                            can_add = (u_limit == 0) or (final_price <= remaining_daily_budget)
-                            btn_txt = f"➕ 加入點餐清單 (${final_price} 元)" if can_add else f"❌ 超出今日限額 (${final_price} 元)"
+                        can_add = (u_limit == 0) or (final_price <= remaining_daily_budget)
+                        btn_txt = f"➕ 加入點餐清單 (${final_price} 元)" if can_add else f"❌ 超出今日限額 (${final_price} 元)"
 
-                            if st.button(btn_txt, key=f"add_btn_{idx}", disabled=not can_add):
-                                st.session_state.cart.append({
-                                    "item": item_name,
-                                    "price": base_p,
-                                    "noodle": nd_choice,
-                                    "extra": ex_choice,
-                                    "subtotal": final_price
-                                })
-                                st.rerun()
+                        if st.button(btn_txt, key=f"add_btn_{idx}", disabled=not can_add):
+                            st.session_state.cart.append({
+                                "item": item_name,
+                                "price": base_p,
+                                "noodle": nd_choice,
+                                "extra": ex_choice,
+                                "subtotal": final_price
+                            })
+                            st.rerun()
 
 # -------------------------------------------------------------
-# 分頁 2：明細與對帳
+# 分頁 2：明細與對帳（支援直接修改、編輯品項、刪除訂單）
 # -------------------------------------------------------------
 with tab2:
     st.subheader("📊 每日點餐明細與收款找零對帳")
@@ -539,37 +526,106 @@ with tab2:
                             st.error(f"⚠️ 還不夠喔！同仁還差 ${abs(change)} 元")
 
             st.write("---")
-            st.markdown("#### 📋 點單明細清單與收款切換：")
+            
+            # -------------------------------------------------------------
+            # 單筆訂單修改彈窗表單
+            # -------------------------------------------------------------
+            if st.session_state.edit_order_id is not None:
+                e_id = st.session_state.edit_order_id
+                matched_rows = st.session_state.orders_data[st.session_state.orders_data["訂單編號"] == e_id]
+                if not matched_rows.empty:
+                    orig = matched_rows.iloc[0]
+                    with st.form("edit_single_order_form"):
+                        st.subheader(f"✏️ 編輯訂單：【{e_id}】")
+                        ed_c1, ed_c2 = st.columns(2)
+                        with ed_c1:
+                            new_name = st.text_input("同仁姓名", value=str(orig.get("員工姓名", "")))
+                            new_item = st.text_input("餐點品項", value=str(orig.get("餐點品項", "")))
+                            new_price = st.number_input("小計金額 (元)", min_value=0, value=parse_price(orig.get("小計金額", 0)), step=5)
+                        with ed_c2:
+                            new_noodle = st.selectbox("麵類選擇", ["意麵", "冬粉", "泡飯", "雞絲麵", "王子麵", "烏龍麵 (+10元)"], 
+                                                     index=0 if "意麵" in str(orig.get("麵類選擇", "")) else 1)
+                            new_extra = st.selectbox("是否加麵", ["不加麵", "要加麵 (+15元)"],
+                                                    index=0 if "不加" in str(orig.get("是否加麵", "")) else 1)
+                            new_status = st.selectbox("付款狀態", ["未付款", "已付款"],
+                                                     index=0 if orig.get("付款狀態", "") != "已付款" else 1)
+
+                        btn_sub1, btn_sub2 = st.columns(2)
+                        with btn_sub1:
+                            if st.form_submit_button("💾 儲存修改", type="primary", use_container_width=True):
+                                idx = matched_rows.index[0]
+                                st.session_state.orders_data.loc[idx, "員工姓名"] = new_name
+                                st.session_state.orders_data.loc[idx, "餐點品項"] = new_item
+                                st.session_state.orders_data.loc[idx, "麵類選擇"] = new_noodle
+                                st.session_state.orders_data.loc[idx, "是否加麵"] = new_extra
+                                st.session_state.orders_data.loc[idx, "小計金額"] = f"${new_price}"
+                                st.session_state.orders_data.loc[idx, "付款狀態"] = new_status
+                                
+                                sync_to_google_sheet({
+                                    "action": "update_status",
+                                    "date": str(orig.get("訂購日期", "")),
+                                    "user": new_name,
+                                    "status": new_status
+                                })
+                                st.session_state.edit_order_id = None
+                                st.success("訂單修改完成！")
+                                st.rerun()
+                        with btn_sub2:
+                            if st.form_submit_button("❌ 取消編輯", use_container_width=True):
+                                st.session_state.edit_order_id = None
+                                st.rerun()
+
+            # -------------------------------------------------------------
+            # 明細卡片列表（附帶 編輯 / 付款切換 / 刪除 按鈕）
+            # -------------------------------------------------------------
+            st.markdown("#### 📋 點單明細清單（可直接修改與切換狀態）：")
             for row_idx, row_data in current_orders.iterrows():
-                row_c1, row_c2, row_c3, row_c4 = st.columns([2, 3, 2, 2])
-                with row_c1:
-                    st.write(f"**{row_data.get('員工姓名', '')}** ({row_data.get('所屬部門', '-')})")
-                with row_c2:
-                    st.write(f"{row_data.get('餐點品項', '')} ｜ {row_data.get('麵類選擇', '')} ｜ {row_data.get('是否加麵', '')}")
-                with row_c3:
-                    st.write(f"金額：<b style='color:#DC2626;'>{row_data.get('小計金額', '')}</b>", unsafe_allow_html=True)
-                with row_c4:
-                    cur_status = row_data.get("付款狀態", "未付款")
-                    if cur_status == "已付款":
-                        if st.button("🟢 已付款 (改未付)", key=f"status_btn_{row_idx}"):
-                            st.session_state.orders_data.loc[row_idx, "付款狀態"] = "未付款"
-                            sync_to_google_sheet({
-                                "action": "update_status",
-                                "date": str(row_data.get("訂購日期", "")),
-                                "user": row_data.get("員工姓名", ""),
-                                "status": "未付款"
-                            })
-                            st.rerun()
-                    else:
-                        if st.button("🔴 未付款 (改已付)", key=f"status_btn_{row_idx}"):
-                            st.session_state.orders_data.loc[row_idx, "付款狀態"] = "已付款"
-                            sync_to_google_sheet({
-                                "action": "update_status",
-                                "date": str(row_data.get("訂購日期", "")),
-                                "user": row_data.get("員工姓名", ""),
-                                "status": "已付款"
-                            })
-                            st.rerun()
+                ord_id = row_data.get("訂單編號", "")
+                with st.container():
+                    st.markdown('<div class="order-row-card">', unsafe_allow_html=True)
+                    r_c1, r_c2, r_c3, r_c4, r_c5, r_c6 = st.columns([1.5, 2, 3.5, 1.5, 2, 1.5])
+                    with r_c1:
+                        st.write(f"**{ord_id}**")
+                    with r_c2:
+                        st.write(f"👤 **{row_data.get('員工姓名', '')}**")
+                    with r_c3:
+                        st.write(f"{row_data.get('餐點品項', '')} ｜ {row_data.get('麵類選擇', '')} ｜ {row_data.get('是否加麵', '')}")
+                    with r_c4:
+                        st.write(f"<b style='color:#DC2626;'>{row_data.get('小計金額', '')}</b>", unsafe_allow_html=True)
+                    with r_c5:
+                        cur_status = row_data.get("付款狀態", "未付款")
+                        if cur_status == "已付款":
+                            if st.button("🟢 已付 (改未付)", key=f"status_btn_{row_idx}"):
+                                st.session_state.orders_data.loc[row_idx, "付款狀態"] = "未付款"
+                                sync_to_google_sheet({
+                                    "action": "update_status",
+                                    "date": str(row_data.get("訂購日期", "")),
+                                    "user": row_data.get("員工姓名", ""),
+                                    "status": "未付款"
+                                })
+                                st.rerun()
+                        else:
+                            if st.button("🔴 未付 (改已付)", key=f"status_btn_{row_idx}"):
+                                st.session_state.orders_data.loc[row_idx, "付款狀態"] = "已付款"
+                                sync_to_google_sheet({
+                                    "action": "update_status",
+                                    "date": str(row_data.get("訂購日期", "")),
+                                    "user": row_data.get("員工姓名", ""),
+                                    "status": "已付款"
+                                })
+                                st.rerun()
+                    with r_c6:
+                        c_ed1, c_ed2 = st.columns(2)
+                        with c_ed1:
+                            if st.button("✏️", key=f"btn_edit_{ord_id}", help="編輯此筆訂單"):
+                                st.session_state.edit_order_id = ord_id
+                                st.rerun()
+                        with c_ed2:
+                            if st.button("🗑️", key=f"btn_rm_{ord_id}", help="刪除這筆訂單"):
+                                st.session_state.orders_data.drop(row_idx, inplace=True)
+                                st.session_state.orders_data.reset_index(drop=True, inplace=True)
+                                st.rerun()
+                    st.markdown('</div>', unsafe_allow_html=True)
 
 # -------------------------------------------------------------
 # 分頁 3：菜單管理
