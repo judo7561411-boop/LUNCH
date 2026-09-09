@@ -4,7 +4,7 @@ from datetime import date
 
 st.set_page_config(page_title="中餐點餐系統", page_icon="🍱", layout="wide")
 
-# CSS 注入：友善大字體、圖卡排版與實體貨幣展示樣式
+# CSS 注入：友善大字體與排版
 st.markdown("""
 <style>
     html, body, [class*="css"] {
@@ -74,57 +74,66 @@ st.markdown("""
         display: flex;
         flex-wrap: wrap;
         align-items: center;
-        gap: 12px;
-        margin-bottom: 16px;
+        gap: 14px;
+        margin-bottom: 14px;
         padding-bottom: 10px;
         border-bottom: 1px solid #F1F5F9;
-    }
-    .real-bill {
-        width: 175px;
-        height: auto;
-        border-radius: 6px;
-        box-shadow: 3px 3px 6px rgba(0,0,0,0.25);
-        margin: 4px;
-    }
-    .real-coin-50 {
-        width: 82px;
-        height: 82px;
-        object-fit: contain;
-        filter: drop-shadow(2px 3px 4px rgba(0,0,0,0.3));
-        margin: 4px;
-    }
-    .real-coin-10 {
-        width: 74px;
-        height: 74px;
-        object-fit: contain;
-        filter: drop-shadow(2px 3px 4px rgba(0,0,0,0.3));
-        margin: 4px;
-    }
-    .real-coin-5 {
-        width: 64px;
-        height: 64px;
-        object-fit: contain;
-        filter: drop-shadow(2px 3px 4px rgba(0,0,0,0.3));
-        margin: 4px;
-    }
-    .real-coin-1 {
-        width: 56px;
-        height: 56px;
-        object-fit: contain;
-        filter: drop-shadow(2px 3px 4px rgba(0,0,0,0.3));
-        margin: 4px;
     }
 </style>
 """, unsafe_allow_html=True)
 
-# 台灣法定貨幣實際圖樣
-IMG_URLS = {
-    "100": "https://upload.wikimedia.org/wikipedia/zh/2/22/NTD_100_obverse.jpg",
-    "50": "https://upload.wikimedia.org/wikipedia/commons/e/ed/New_Taiwan_dollar_50_dollar_coin.png",
-    "10": "https://upload.wikimedia.org/wikipedia/commons/d/dd/New_Taiwan_dollar_10_dollar_coin.png",
-    "5": "https://upload.wikimedia.org/wikipedia/commons/e/e2/5_New_Taiwan_Dollar.png",
-    "1": "https://upload.wikimedia.org/wikipedia/commons/9/90/1_New_Taiwan_Dollar.png"
-}
+# -------------------------------------------------------------
+# 純向量 SVG 實體貨幣圖卡（內嵌免外連，保證不破圖）
+# -------------------------------------------------------------
+SVG_100 = """
+<svg width="180" height="90" viewBox="0 0 180 90" xmlns="http://www.w3.org/2000/svg" style="border-radius:6px; box-shadow:2px 3px 6px rgba(0,0,0,0.3); margin:4px;">
+  <rect width="180" height="90" rx="6" fill="#C53030"/>
+  <rect x="4" y="4" width="172" height="82" rx="4" fill="none" stroke="#FED7D7" stroke-width="1.5" stroke-dasharray="4,2"/>
+  <circle cx="45" cy="45" r="22" fill="#9B2C2C"/>
+  <circle cx="45" cy="45" r="18" fill="none" stroke="#FEB2B2" stroke-width="1"/>
+  <text x="45" y="52" font-family="sans-serif" font-size="20" font-weight="bold" fill="#FED7D7" text-anchor="middle">100</text>
+  <text x="135" y="55" font-family="sans-serif" font-size="44" font-weight="900" fill="#FFFFFF" text-anchor="middle">100</text>
+  <text x="90" y="22" font-family="sans-serif" font-size="12" font-weight="bold" fill="#FED7D7" text-anchor="middle">中華民國中央銀行</text>
+  <text x="135" y="75" font-family="sans-serif" font-size="14" font-weight="bold" fill="#FEEBC8" text-anchor="middle">壹佰圓</text>
+</svg>
+"""
+
+SVG_50 = """
+<svg width="84" height="84" viewBox="0 0 84 84" xmlns="http://www.w3.org/2000/svg" style="filter: drop-shadow(2px 3px 4px rgba(0,0,0,0.35)); margin:4px;">
+  <circle cx="42" cy="42" r="40" fill="#D69E2E" stroke="#744210" stroke-width="2"/>
+  <circle cx="42" cy="42" r="34" fill="#ECC94B" stroke="#B7791F" stroke-width="1.5"/>
+  <circle cx="42" cy="42" r="26" fill="#D69E2E"/>
+  <text x="42" y="49" font-family="sans-serif" font-size="28" font-weight="900" fill="#5A3207" text-anchor="middle">50</text>
+  <text x="42" y="61" font-family="sans-serif" font-size="11" font-weight="bold" fill="#744210" text-anchor="middle">圓</text>
+</svg>
+"""
+
+SVG_10 = """
+<svg width="76" height="76" viewBox="0 0 76 76" xmlns="http://www.w3.org/2000/svg" style="filter: drop-shadow(2px 3px 4px rgba(0,0,0,0.3)); margin:4px;">
+  <circle cx="38" cy="38" r="36" fill="#A0AEC0" stroke="#4A5568" stroke-width="2"/>
+  <circle cx="38" cy="38" r="30" fill="#E2E8F0" stroke="#718096" stroke-width="1.5"/>
+  <text x="38" y="44" font-family="sans-serif" font-size="26" font-weight="900" fill="#2D3748" text-anchor="middle">10</text>
+  <text x="38" y="56" font-family="sans-serif" font-size="11" font-weight="bold" fill="#4A5568" text-anchor="middle">圓</text>
+</svg>
+"""
+
+SVG_5 = """
+<svg width="66" height="66" viewBox="0 0 66 66" xmlns="http://www.w3.org/2000/svg" style="filter: drop-shadow(2px 3px 4px rgba(0,0,0,0.3)); margin:4px;">
+  <circle cx="33" cy="33" r="31" fill="#CBD5E0" stroke="#718096" stroke-width="2"/>
+  <circle cx="33" cy="33" r="25" fill="#EDF2F7" stroke="#A0AEC0" stroke-width="1"/>
+  <text x="33" y="39" font-family="sans-serif" font-size="22" font-weight="900" fill="#2D3748" text-anchor="middle">5</text>
+  <text x="33" y="49" font-family="sans-serif" font-size="10" font-weight="bold" fill="#4A5568" text-anchor="middle">圓</text>
+</svg>
+"""
+
+SVG_1 = """
+<svg width="58" height="58" viewBox="0 0 58 58" xmlns="http://www.w3.org/2000/svg" style="filter: drop-shadow(2px 3px 4px rgba(0,0,0,0.3)); margin:4px;">
+  <circle cx="29" cy="29" r="27" fill="#DD6B20" stroke="#7B341E" stroke-width="2"/>
+  <circle cx="29" cy="29" r="21" fill="#ED8936" stroke="#9C4221" stroke-width="1"/>
+  <text x="29" y="35" font-family="sans-serif" font-size="20" font-weight="900" fill="#431407" text-anchor="middle">1</text>
+  <text x="29" y="45" font-family="sans-serif" font-size="10" font-weight="bold" fill="#652B19" text-anchor="middle">圓</text>
+</svg>
+"""
 
 SHEET_ID = "1mHnXoG-Duq45EvwZTRVuq86rsK8T5DA9NkLnOi30wuM"
 
@@ -162,7 +171,6 @@ def load_orders():
         df = pd.read_csv(url, header=h_idx)
         df.columns = [str(c).strip() for c in df.columns]
 
-        # 欄位模糊對應修復
         for col in df.columns:
             if "日期" in col and "訂購日期" not in df.columns:
                 df.rename(columns={col: "訂購日期"}, inplace=True)
@@ -173,7 +181,6 @@ def load_orders():
             elif "狀態" in col and "付款狀態" not in df.columns:
                 df.rename(columns={col: "付款狀態"}, inplace=True)
 
-        # 補齊可能缺失的標準欄位
         for req in REQUIRED_ORDER_COLS:
             if req not in df.columns:
                 df[req] = ""
@@ -373,7 +380,7 @@ with tab1:
                             st.rerun()
 
 # -------------------------------------------------------------
-# 分頁 2：明細與對帳
+# 分頁 2：明細與對帳（向量 SVG 實體貨幣展示）
 # -------------------------------------------------------------
 with tab2:
     st.subheader("📊 每日點餐明細與收款找零對帳")
@@ -393,7 +400,6 @@ with tab2:
 
     df_orders = st.session_state.df_orders.copy()
 
-    # 確保必要欄位存在
     for req in REQUIRED_ORDER_COLS:
         if req not in df_orders.columns:
             df_orders[req] = ""
@@ -401,7 +407,6 @@ with tab2:
     if df_orders.empty:
         st.info("尚無任何訂單紀錄。請先在【🛒 友善大圖點餐】送出餐點。")
     else:
-        # 日期篩選防呆
         if show_all:
             current_orders = df_orders.copy()
             date_mask = pd.Series([True] * len(df_orders), index=df_orders.index)
@@ -412,7 +417,7 @@ with tab2:
             current_orders = df_orders[date_mask].copy()
 
         if current_orders.empty:
-            st.info(f"【{query_date}】尚無點單紀錄。（若要檢視之前的舊資料，請勾選上方「檢視所有歷史訂單」）")
+            st.info(f"【{query_date}】尚無點單紀錄。（若要檢視舊資料，請勾選上方「檢視所有歷史訂單」）")
         else:
             def parse_money(v):
                 try:
@@ -437,8 +442,8 @@ with tab2:
 
             st.write("---")
 
-            # 台灣實體貨幣找零輔助器（看幾個拿幾個）
-            with st.expander("💵 現場收款與【新臺幣實際鈔票/硬幣】找零輔助器", expanded=True):
+            # 現場找零輔助器
+            with st.expander("💵 現場收款與【新臺幣實體貨幣】找零輔助器", expanded=True):
                 unpaid_list = current_orders[current_orders["付款狀態"] != "已付款"]
                 
                 if unpaid_list.empty:
@@ -498,23 +503,23 @@ with tab2:
                                 board_html = "<div class='money-visual-board'>"
                                 
                                 if c100 > 0:
-                                    bills_html = "".join([f"<img src='{IMG_URLS['100']}' class='real-bill'/>" for _ in range(c100)])
+                                    bills_html = "".join([SVG_100 for _ in range(c100)])
                                     board_html += f"<div class='money-group-row'>{bills_html}</div>"
                                 
                                 if c50 > 0:
-                                    c50_html = "".join([f"<img src='{IMG_URLS['50']}' class='real-coin-50'/>" for _ in range(c50)])
+                                    c50_html = "".join([SVG_50 for _ in range(c50)])
                                     board_html += f"<div class='money-group-row'>{c50_html}</div>"
 
                                 if c10 > 0:
-                                    c10_html = "".join([f"<img src='{IMG_URLS['10']}' class='real-coin-10'/>" for _ in range(c10)])
+                                    c10_html = "".join([SVG_10 for _ in range(c10)])
                                     board_html += f"<div class='money-group-row'>{c10_html}</div>"
 
                                 if c5 > 0:
-                                    c5_html = "".join([f"<img src='{IMG_URLS['5']}' class='real-coin-5'/>" for _ in range(c5)])
+                                    c5_html = "".join([SVG_5 for _ in range(c5)])
                                     board_html += f"<div class='money-group-row'>{c5_html}</div>"
 
                                 if c1 > 0:
-                                    c1_html = "".join([f"<img src='{IMG_URLS['1']}' class='real-coin-1'/>" for _ in range(c1)])
+                                    c1_html = "".join([SVG_1 for _ in range(c1)])
                                     board_html += f"<div class='money-group-row'>{c1_html}</div>"
 
                                 board_html += "</div>"
