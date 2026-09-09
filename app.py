@@ -60,12 +60,23 @@ st.markdown("""
         text-align: center;
         margin-top: 20px;
     }
+    .change-box {
+        background-color: #FEF3C7;
+        border: 2px solid #F59E0B;
+        border-radius: 14px;
+        padding: 16px;
+        font-size: 24px;
+        font-weight: bold;
+        color: #92400E;
+        text-align: center;
+        margin-top: 10px;
+        margin-bottom: 10px;
+    }
 </style>
 """, unsafe_allow_html=True)
 
 SHEET_ID = "1mHnXoG-Duq45EvwZTRVuq86rsK8T5DA9NkLnOi30wuM"
 
-# 每次都抓最新資料，不使用快取避免金額不同步
 def load_menu():
     try:
         url = f"https://docs.google.com/spreadsheets/d/{SHEET_ID}/gviz/tq?tqx=out:csv&sheet=menu"
@@ -242,7 +253,6 @@ with tab1:
             except:
                 base_p = 0
 
-            # 底價高於個人限額者直接隱藏
             if u_limit > 0 and base_p > u_limit:
                 continue
 
@@ -269,7 +279,6 @@ with tab1:
                         with c_ex:
                             ex_choice = st.radio("份量", ["不加麵", "要加麵 (+15元)"], horizontal=True, key=f"ex_{idx}")
 
-                        # 精準判斷加價：只有在「要加麵 (+15元)」時才加 15 元
                         extra_nd = 10 if "烏龍麵" in nd_choice else 0
                         extra_ex = 15 if ex_choice == "要加麵 (+15元)" else 0
                         final_price = base_p + extra_nd + extra_ex
@@ -288,10 +297,11 @@ with tab1:
                             st.rerun()
 
 # -------------------------------------------------------------
-# 分頁 2：明細與對帳
+# 分頁 2：明細與對帳（支援點選付款、找零計算機、明細維護）
 # -------------------------------------------------------------
 with tab2:
-    st.subheader("📊 每日點餐明細與收款對帳")
+    st.subheader("📊 每日點餐明細與收款找零對帳")
+
     col_q1, col_q2 = st.columns([2, 1])
     with col_q1:
         query_date = st.date_input("選擇欲對帳或查詢的日期", value=date.today())
@@ -309,7 +319,10 @@ with tab2:
     if df_orders.empty or "訂購日期" not in df_orders.columns:
         st.info("尚無任何訂單紀錄。")
     else:
-        current_orders = df_orders[df_orders["訂購日期"].astype(str) == str(query_date)].copy()
+        # 篩選所選日期的訂單索引
+        date_mask = df_orders["訂購日期"].astype(str) == str(query_date)
+        current_orders = df_orders[date_mask].copy()
+
         if current_orders.empty:
             st.info(f"【{query_date}】當日尚無任何點單紀錄。")
         else:
@@ -328,22 +341,107 @@ with tab2:
             unpaid_money = total_money - paid_money
             unpaid_count = total_items - len(paid_orders)
 
+            # 統計看板
             m1, m2, m3, m4 = st.columns(4)
             m1.metric("當日訂單總額", f"${total_money:,} 元")
             m2.metric("總訂單數", f"{total_items} 筆")
-            m3.metric("已收款總額", f"${paid_money:,} 元", f"{len(paid_orders)} 筆已付")
-            m4.metric("待收餘額 (未付)", f"${unpaid_money:,} 元", f"{unpaid_count} 筆未付", delta_color="inverse")
+            m3.metric("已收款總額", f"${paid_money:,} 元", f"{len(paid_orders)} 筆已收")
+            m4.metric("待收餘額 (未收)", f"${unpaid_money:,} 元", f"{unpaid_count} 筆待收", delta_color="inverse")
 
             st.write("---")
-            st.markdown("#### ✏️ 點單明細清單：")
+
+            # ---------------------------------------------------------
+            # 收款找零計算小工具
+            # ---------------------------------------------------------
+            with st.expander("💵 現場收款找零計算機（點擊展開）", expanded=True):
+                unpaid_list = current_orders[current_orders["付款狀態"] != "已付款"]
+                
+                if unpaid_list.empty:
+                    st.success("🎉 太棒了！今日所有訂單皆已全數收款完畢！")
+                else:
+                    user_options = unpaid_list["員工姓名"].unique().tolist()
+                    calc_col1, calc_col2 = st.columns([1, 1])
+                    
+                    with calc_col1:
+                        target_user = st.selectbox("選擇要繳費收款的同仁", options=user_options)
+                        # 計算該同仁今日所有未付款餐點總額
+                        user_unpaid_items = unpaid_list[unpaid_list["員工姓名"] == target_user]
+                        target_due = user_unpaid_items["金額數值"].sum()
+                        st.info(f"👉 **{target_user}** 應繳總金額：<b style='color:#DC2626; font-size:26px;'>${target_due}</b> 元")
+
+                    with calc_col2:
+                        st.write("輸入或點選實收金額：")
+                        # 實收快捷按鈕
+                        q_col1, q_col2, q_col3 = st.columns(3)
+                        with q_col1:
+                            if st.button("剛好", key="pay_exact"):
+                                st.session_state.received_cash = target_due
+                        with q_col2:
+                            if st.button("收 $100", key="pay_100"):
+                                st.session_state.received_cash = 100
+                        with q_col3:
+                            if st.button("收 $500", key="pay_500"):
+                                st.session_state.received_cash = 500
+
+                        default_val = st.session_state.get("received_cash", target_due)
+                        paid_input = st.number_input("實收金額 (元)", min_value=0, value=int(default_val), step=10)
+
+                        # 自動計算找零
+                        change = paid_input - target_due
+                        if change >= 0:
+                            st.markdown(f'<div class="change-box">🪙 應找零錢：<b style="color:#059669; font-size:32px;">${change}</b> 元</div>', unsafe_allow_html=True)
+                            if st.button(f"✅ 確認收款並完成找零（將 {target_user} 標記為已付款）", type="primary"):
+                                # 將該同仁今日訂單全部標為已付款
+                                target_indices = user_unpaid_items.index
+                                st.session_state.df_orders.loc[target_indices, "付款狀態"] = "已付款"
+                                st.success(f"已成功收取 {target_user} 款項，並標記為已付款！")
+                                st.rerun()
+                        else:
+                            st.error(f"⚠️ 金額不足！還差 ${abs(change)} 元")
+
+            st.write("---")
+
+            # ---------------------------------------------------------
+            # 點單明細清單與一鍵切換狀態
+            # ---------------------------------------------------------
+            st.markdown("#### 📋 點單明細清單與收款切換：")
+            st.caption("💡 提示：點擊右側按鈕可快速切換【已付款】或【未付款】狀態。")
+
+            for row_idx, row_data in current_orders.iterrows():
+                row_c1, row_c2, row_c3, row_c4 = st.columns([2, 3, 2, 2])
+                with row_c1:
+                    st.write(f"**{row_data['員工姓名']}** ({row_data.get('所屬部門', '-')})")
+                with row_c2:
+                    st.write(f"{row_data['餐點品項']} ｜ {row_data['麵類選擇']} ｜ {row_data['是否加麵']}")
+                with row_c3:
+                    st.write(f"金額：<b style='color:#DC2626;'>{row_data['小計金額']}</b>", unsafe_allow_html=True)
+                with row_c4:
+                    cur_status = row_data.get("付款狀態", "未付款")
+                    if cur_status == "已付款":
+                        if st.button("🟢 已付款 (點擊改未付)", key=f"status_btn_{row_idx}"):
+                            st.session_state.df_orders.loc[row_idx, "付款狀態"] = "未付款"
+                            st.rerun()
+                    else:
+                        if st.button("🔴 未付款 (點擊確認收款)", key=f"status_btn_{row_idx}"):
+                            st.session_state.df_orders.loc[row_idx, "付款狀態"] = "已付款"
+                            st.rerun()
+
+            st.write("---")
+            st.markdown("#### ✏️ 完整表格檢視與批次編輯：")
             column_config = {
                 "付款狀態": st.column_config.SelectboxColumn("付款狀態", options=["已付款", "未付款"], required=True)
             }
             display_cols = [c for c in current_orders.columns if c != "金額數值"]
-            edited_today = st.data_editor(current_orders[display_cols], column_config=column_config, use_container_width=True, num_rows="dynamic", key="orders_editor")
+            edited_today = st.data_editor(
+                current_orders[display_cols],
+                column_config=column_config,
+                use_container_width=True,
+                num_rows="dynamic",
+                key="orders_editor"
+            )
 
             if st.button("💾 儲存明細修改", type="primary"):
-                other_orders = df_orders[df_orders["訂購日期"].astype(str) != str(query_date)]
+                other_orders = df_orders[~date_mask]
                 st.session_state.df_orders = pd.concat([other_orders, edited_today], ignore_index=True)
                 st.success("✅ 訂單與收款狀態已成功更新！")
                 st.rerun()
