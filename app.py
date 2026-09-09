@@ -9,6 +9,7 @@ st.set_page_config(page_title="中餐點餐系統", page_icon="🍱", layout="wi
 
 APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbw0UEIp80umbupbDQkMQAa5-3Z4HQp01r9VH_Zr-0nYnPzXv6jgY_gKYFyScn7e2Lrj/exec"
 SHEET_ID = "1mHnXoG-Duq45EvwZTRVuq86rsK8T5DA9NkLnOi30wuM"
+ORDERS_GID = "1002"  # 精準鎖定您的 orders 分頁 gid
 
 st.markdown("""
 <style>
@@ -33,6 +34,18 @@ st.markdown("""
         background-color: #EFF6FF; border: 2px solid #3B82F6;
         border-radius: 14px; padding: 16px 20px; font-size: 24px;
         font-weight: bold; color: #1E3A8A; margin-bottom: 20px;
+    }
+    .over-limit-box {
+        background-color: #FDE8E8;
+        border: 3px solid #F98080;
+        border-radius: 18px;
+        padding: 26px;
+        font-size: 30px;
+        font-weight: bold;
+        color: #9B1C1C;
+        text-align: center;
+        margin-top: 20px;
+        margin-bottom: 25px;
     }
     .big-pay-box {
         background-color: #DEF7EC;
@@ -82,6 +95,12 @@ REQUIRED_ORDER_COLS = [
     "餐點品項", "麵類選擇", "是否加麵", "單價", "數量", "小計金額", "付款狀態"
 ]
 
+def parse_price(val):
+    try:
+        return int(str(val).replace("$", "").replace(",", "").strip())
+    except:
+        return 0
+
 def load_menu():
     try:
         t = int(time.time())
@@ -100,9 +119,10 @@ def load_users():
     except:
         return pd.DataFrame()
 
+# 使用精準 gid=1002 讀取 orders 分頁
 def load_orders_from_sheet():
     t = int(time.time())
-    url = f"https://docs.google.com/spreadsheets/d/{SHEET_ID}/gviz/tq?tqx=out:csv&sheet=orders&_t={t}"
+    url = f"https://docs.google.com/spreadsheets/d/{SHEET_ID}/export?format=csv&gid={ORDERS_GID}&_t={t}"
     try:
         raw_df = pd.read_csv(url, header=None)
         h_idx = 3
@@ -111,6 +131,7 @@ def load_orders_from_sheet():
             if any("訂單編號" in v or "員工姓名" in v for v in row_vals):
                 h_idx = i
                 break
+        
         df = pd.read_csv(url, header=h_idx)
         df.columns = [str(c).strip() for c in df.columns]
 
@@ -132,6 +153,7 @@ def load_orders_from_sheet():
             df = df.dropna(subset=["員工姓名"])
             df = df[~df["員工姓名"].astype(str).str.contains("總計|合計", na=False)]
             df = df[df["員工姓名"].astype(str).str.strip() != ""]
+            df = df[df["員工姓名"].astype(str).str.strip() != "nan"]
         return df
     except:
         return pd.DataFrame(columns=REQUIRED_ORDER_COLS)
@@ -176,13 +198,12 @@ tab1, tab2, tab3, tab4 = st.tabs([
 with tab1:
     today_str = str(date.today())
     
-    # 點餐完成畫面：明確提示應付款金額，僅保留「換下一位點餐」
     if st.session_state.order_finished:
         pay_amount = st.session_state.last_paid_amount
         st.markdown(f"""
         <div class="big-pay-box">
             🎉 已完成訂單！<br>
-            請準備 <span style="color: #DC2626; font-size: 42px; font-weight: 900;">${pay_amount}</span> 元付款
+            請準備 <span style="color: #DC2626; font-size: 44px; font-weight: 900;">${pay_amount}</span> 元付款
         </div>
         """, unsafe_allow_html=True)
         
@@ -205,11 +226,7 @@ with tab1:
             for idx, (_, u_row) in enumerate(df_users.iterrows()):
                 u_name = str(u_row["姓名"]).strip()
                 raw_lim = u_row.get("金額限制", 0)
-                try:
-                    lim_val = int(float(str(raw_lim).replace("$", "").replace(",", "").strip())) if pd.notnull(raw_lim) else 0
-                except:
-                    lim_val = 0
-
+                lim_val = parse_price(raw_lim)
                 lim_badge = f"（限額 ${lim_val} 元）" if lim_val > 0 else "（不限額）"
 
                 with cols[idx % 2]:
@@ -224,21 +241,58 @@ with tab1:
     else:
         u_name = st.session_state.selected_user
         u_limit = st.session_state.user_limit
+
+        df_all = st.session_state.orders_data
+        already_spent_today = 0
+        if not df_all.empty and "員工姓名" in df_all.columns and "訂購日期" in df_all.columns:
+            d_s = df_all["訂購日期"].astype(str).str.replace("-", "/")
+            today_slash = today_str.replace("-", "/")
+            user_today_orders = df_all[(df_all["員工姓名"] == u_name) & (d_s == today_slash)]
+            already_spent_today = user_today_orders["小計金額"].apply(parse_price).sum()
+
         cart_sum = sum(x["subtotal"] for x in st.session_state.cart)
-        remain = (u_limit - cart_sum) if u_limit > 0 else 999999
 
-        limit_txt = f"個人上限額度：<b>${u_limit} 元</b> ｜ 剩餘可用：<b style='color:#DC2626;'>${remain} 元</b>" if u_limit > 0 else "個人上限額度：<b>無限制</b>"
-        st.markdown(f'<div class="budget-banner">👤 目前同仁：{u_name} ｜ {limit_txt}</div>', unsafe_allow_html=True)
+        if u_limit > 0:
+            remaining_daily_budget = u_limit - already_spent_today - cart_sum
+            is_already_fully_spent = (already_spent_today >= u_limit)
+        else:
+            remaining_daily_budget = 999999
+            is_already_fully_spent = False
 
-        with st.container():
-            col_t1, col_t2 = st.columns([3, 1])
-            with col_t1:
-                st.markdown(f"### 🛒 已選餐點清單（共 {len(st.session_state.cart)} 樣，合計 **${cart_sum}** 元）")
-            with col_t2:
-                if st.button("⬅️ 重選同仁 (清空)"):
-                    st.session_state.selected_user = None
-                    st.session_state.cart = []
-                    st.rerun()
+        if is_already_fully_spent and len(st.session_state.cart) == 0:
+            st.markdown(f"""
+            <div class="over-limit-box">
+                ⚠️ 【{u_name}】您今日已達到金額上限！<br>
+                本日限定額度：${u_limit} 元 ｜ 今日已點金額：<b>${already_spent_today}</b> 元<br>
+                <span style="font-size: 22px; color: #4B5563;">（今日不可再加點其他餐點）</span>
+            </div>
+            """, unsafe_allow_html=True)
+
+            st.markdown('<div class="big-next-btn">', unsafe_allow_html=True)
+            if st.button("👉 換下一位點餐", key="btn_next_overlimit"):
+                st.session_state.selected_user = None
+                st.session_state.user_limit = 0
+                st.session_state.cart = []
+                st.rerun()
+            st.markdown('</div>', unsafe_allow_html=True)
+
+        else:
+            if u_limit > 0:
+                limit_info = f"今日限額：<b>${u_limit}</b> 元 ｜ 今日已累計：<b>${already_spent_today}</b> 元 ｜ 本次還可點：<b style='color:#DC2626;'>${remaining_daily_budget}</b> 元"
+            else:
+                limit_info = "今日限額：<b>無限制</b>"
+
+            st.markdown(f'<div class="budget-banner">👤 目前同仁：{u_name} ｜ {limit_info}</div>', unsafe_allow_html=True)
+
+            with st.container():
+                col_t1, col_t2 = st.columns([3, 1])
+                with col_t1:
+                    st.markdown(f"### 🛒 本次點餐清單（共 {len(st.session_state.cart)} 樣，本次合計 **${cart_sum}** 元）")
+                with col_t2:
+                    if st.button("⬅️ 重選同仁 (清空)"):
+                        st.session_state.selected_user = None
+                        st.session_state.cart = []
+                        st.rerun()
 
             if st.session_state.cart:
                 for c_idx, c_item in enumerate(st.session_state.cart):
@@ -280,14 +334,10 @@ with tab1:
                             "付款狀態": "未付款"
                         })
 
-                    # 紀錄應付總額供完成畫面呈現
                     st.session_state.last_paid_amount = cart_sum
-
-                    # 本地同步一份
                     new_df = pd.DataFrame(new_rows)
                     st.session_state.orders_data = pd.concat([st.session_state.orders_data, new_df], ignore_index=True)
 
-                    # 寫入試算表
                     with st.spinner("同步儲存至 Google 試算表..."):
                         sync_to_google_sheet({
                             "action": "append",
@@ -297,58 +347,54 @@ with tab1:
                     st.session_state.order_finished = True
                     st.rerun()
 
-        st.write("---")
-        st.subheader("👇 請挑選餐點：")
+            st.write("---")
+            st.subheader("👇 請挑選餐點：")
 
-        available_menu = df_menu[df_menu["供應狀態"] == "供應中"] if "供應狀態" in df_menu.columns else df_menu
-        displayed_items = []
-        for _, row in available_menu.iterrows():
-            raw_p = row.get("單價", 0)
-            try:
-                base_p = int(str(raw_p).replace("$", "").replace(",", "").strip())
-            except:
-                base_p = 0
-            if u_limit > 0 and base_p > u_limit:
-                continue
-            displayed_items.append((row, base_p))
+            available_menu = df_menu[df_menu["供應狀態"] == "供應中"] if "供應狀態" in df_menu.columns else df_menu
+            displayed_items = []
+            for _, row in available_menu.iterrows():
+                base_p = parse_price(row.get("單價", 0))
+                if u_limit > 0 and base_p > remaining_daily_budget:
+                    continue
+                displayed_items.append((row, base_p))
 
-        if not displayed_items:
-            st.warning("⚠️ 沒有符合你金額限制內的餐點項目。")
-        else:
-            cols = st.columns(2)
-            for idx, (m_row, base_p) in enumerate(displayed_items):
-                item_name = m_row["餐點名稱"]
-                with cols[idx % 2]:
-                    with st.container():
-                        st.markdown(f"""
-                        <div class="food-card">
-                            <h3 style="margin-top:0; color:#1E293B;">🍲 {item_name}</h3>
-                            <div style="font-size:20px; color:#475569; margin-bottom:8px;">基本價格：<b style="color:#059669;">${base_p} 元</b></div>
-                        </div>
-                        """, unsafe_allow_html=True)
-                        
-                        c_nd, c_ex = st.columns(2)
-                        with c_nd:
-                            nd_choice = st.selectbox("麵體", ["意麵", "冬粉", "泡飯", "雞絲麵", "王子麵", "烏龍麵 (+10元)"], key=f"nd_{idx}")
-                        with c_ex:
-                            ex_choice = st.radio("份量", ["不加麵", "要加麵 (+15元)"], horizontal=True, key=f"ex_{idx}")
+            if not displayed_items:
+                st.warning("⚠️ 剩餘額度不足以再點其他餐點囉！若已挑選完畢，請點擊上方【✅ 我選好了，送出全部餐點！】。")
+            else:
+                cols = st.columns(2)
+                for idx, (m_row, base_p) in enumerate(displayed_items):
+                    item_name = m_row["餐點名稱"]
+                    with cols[idx % 2]:
+                        with st.container():
+                            st.markdown(f"""
+                            <div class="food-card">
+                                <h3 style="margin-top:0; color:#1E293B;">🍲 {item_name}</h3>
+                                <div style="font-size:20px; color:#475569; margin-bottom:8px;">基本價格：<b style="color:#059669;">${base_p} 元</b></div>
+                            </div>
+                            """, unsafe_allow_html=True)
+                            
+                            c_nd, c_ex = st.columns(2)
+                            with c_nd:
+                                nd_choice = st.selectbox("麵體", ["意麵", "冬粉", "泡飯", "雞絲麵", "王子麵", "烏龍麵 (+10元)"], key=f"nd_{idx}")
+                            with c_ex:
+                                ex_choice = st.radio("份量", ["不加麵", "要加麵 (+15元)"], horizontal=True, key=f"ex_{idx}")
 
-                        extra_nd = 10 if "烏龍麵" in nd_choice else 0
-                        extra_ex = 15 if ex_choice == "要加麵 (+15元)" else 0
-                        final_price = base_p + extra_nd + extra_ex
+                            extra_nd = 10 if "烏龍麵" in nd_choice else 0
+                            extra_ex = 15 if ex_choice == "要加麵 (+15元)" else 0
+                            final_price = base_p + extra_nd + extra_ex
 
-                        can_add = (u_limit == 0) or (final_price <= remain)
-                        btn_txt = f"➕ 加入點餐清單 (${final_price} 元)" if can_add else f"❌ 超出剩餘額度 (${final_price} 元)"
+                            can_add = (u_limit == 0) or (final_price <= remaining_daily_budget)
+                            btn_txt = f"➕ 加入點餐清單 (${final_price} 元)" if can_add else f"❌ 超出今日限額 (${final_price} 元)"
 
-                        if st.button(btn_txt, key=f"add_btn_{idx}", disabled=not can_add):
-                            st.session_state.cart.append({
-                                "item": item_name,
-                                "price": base_p,
-                                "noodle": nd_choice,
-                                "extra": ex_choice,
-                                "subtotal": final_price
-                            })
-                            st.rerun()
+                            if st.button(btn_txt, key=f"add_btn_{idx}", disabled=not can_add):
+                                st.session_state.cart.append({
+                                    "item": item_name,
+                                    "price": base_p,
+                                    "noodle": nd_choice,
+                                    "extra": ex_choice,
+                                    "subtotal": final_price
+                                })
+                                st.rerun()
 
 # -------------------------------------------------------------
 # 分頁 2：明細與對帳
@@ -360,7 +406,7 @@ with tab2:
     with c_q1:
         query_date = st.date_input("選擇欲對帳或查詢的日期", value=date.today())
     with c_q2:
-        filter_mode = st.radio("檢視模式", ["📅 依所選日期", "📋 顯示全部訂單"], horizontal=True)
+        filter_mode = st.radio("檢視模式", ["📅 依所選日期", "📋 顯示全部訂單"], index=1, horizontal=True)
     with c_q3:
         st.write("")
         if st.button("🔄 重新從雲端抓取", type="primary"):
@@ -383,15 +429,9 @@ with tab2:
             current_orders = all_orders[date_mask].copy()
 
         if current_orders.empty:
-            st.warning(f"⚠️ 在【{query_date}】查無點單紀錄。（可切換為「📋 顯示全部訂單」查看）")
+            st.warning(f"⚠️ 在【{query_date}】查無點單紀錄。（請點選上方「📋 顯示全部訂單」確認）")
         else:
-            def parse_money(v):
-                try:
-                    return int(str(v).replace("$", "").replace(",", "").strip())
-                except:
-                    return 0
-
-            current_orders["金額數值"] = current_orders["小計金額"].apply(parse_money)
+            current_orders["金額數值"] = current_orders["小計金額"].apply(parse_price)
             total_money = current_orders["金額數值"].sum()
             total_items = len(current_orders)
 
@@ -472,7 +512,7 @@ with tab2:
                                 if c50 > 0:
                                     board_html += f"<div class='money-group-row'>{''.join([SVG_50 for _ in range(c50)])}</div>"
                                 if c10 > 0:
-                                    board_html += f"<div class='money-group-row'>{''.join([SVG_100 if False else SVG_10 for _ in range(c10)])}</div>"
+                                    board_html += f"<div class='money-group-row'>{''.join([SVG_10 for _ in range(c10)])}</div>"
                                 if c5 > 0:
                                     board_html += f"<div class='money-group-row'>{''.join([SVG_5 for _ in range(c5)])}</div>"
                                 if c1 > 0:
