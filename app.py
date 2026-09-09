@@ -34,10 +34,31 @@ st.markdown("""
         border-radius: 14px; padding: 16px 20px; font-size: 24px;
         font-weight: bold; color: #1E3A8A; margin-bottom: 20px;
     }
-    .big-success {
-        background-color: #DEF7EC; border: 3px solid #31C48D;
-        border-radius: 16px; padding: 24px; font-size: 30px;
-        font-weight: bold; color: #03543F; text-align: center; margin-top: 20px;
+    .big-pay-box {
+        background-color: #DEF7EC;
+        border: 3px solid #31C48D;
+        border-radius: 18px;
+        padding: 26px;
+        font-size: 32px;
+        font-weight: bold;
+        color: #03543F;
+        text-align: center;
+        margin-top: 15px;
+        margin-bottom: 25px;
+        box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+    }
+    .big-next-btn button {
+        width: 100% !important;
+        min-height: 90px !important;
+        font-size: 32px !important;
+        font-weight: bold !important;
+        border-radius: 18px !important;
+        background-color: #EF4444 !important;
+        color: white !important;
+        box-shadow: 0 4px 6px rgba(0,0,0,0.1) !important;
+    }
+    .big-next-btn button:hover {
+        background-color: #DC2626 !important;
     }
     .money-visual-board {
         background-color: #FFFFFF; border: 3px dashed #60A5FA;
@@ -124,7 +145,6 @@ def sync_to_google_sheet(payload):
     except Exception as e:
         return False, str(e)
 
-# 初始化狀態
 if "orders_data" not in st.session_state:
     st.session_state.orders_data = load_orders_from_sheet()
 if "selected_user" not in st.session_state:
@@ -135,6 +155,8 @@ if "cart" not in st.session_state:
     st.session_state.cart = []
 if "order_finished" not in st.session_state:
     st.session_state.order_finished = False
+if "last_paid_amount" not in st.session_state:
+    st.session_state.last_paid_amount = 0
 
 df_menu = load_menu()
 df_users = load_users()
@@ -149,25 +171,30 @@ tab1, tab2, tab3, tab4 = st.tabs([
 ])
 
 # -------------------------------------------------------------
-# 分頁 1：友善點餐
+# 分頁 1：友善大圖點餐
 # -------------------------------------------------------------
 with tab1:
     today_str = str(date.today())
+    
+    # 點餐完成畫面：明確提示應付款金額，僅保留「換下一位點餐」
     if st.session_state.order_finished:
-        st.markdown(f'<div class="big-success">🎉 點餐完成！資料已同步儲存至 Google 試算表！</div>', unsafe_allow_html=True)
-        st.write("")
-        c_a, c_b = st.columns(2)
-        with c_a:
-            if st.button("👉 幫下一位同仁點餐", type="primary", use_container_width=True):
-                st.session_state.selected_user = None
-                st.session_state.user_limit = 0
-                st.session_state.cart = []
-                st.session_state.order_finished = False
-                st.rerun()
-        with c_b:
-            if st.button("📊 前往明細與對帳確認", use_container_width=True):
-                st.session_state.order_finished = False
-                st.rerun()
+        pay_amount = st.session_state.last_paid_amount
+        st.markdown(f"""
+        <div class="big-pay-box">
+            🎉 已完成訂單！<br>
+            請準備 <span style="color: #DC2626; font-size: 42px; font-weight: 900;">${pay_amount}</span> 元付款
+        </div>
+        """, unsafe_allow_html=True)
+        
+        st.markdown('<div class="big-next-btn">', unsafe_allow_html=True)
+        if st.button("👉 換下一位點餐", key="btn_next_user"):
+            st.session_state.selected_user = None
+            st.session_state.user_limit = 0
+            st.session_state.cart = []
+            st.session_state.last_paid_amount = 0
+            st.session_state.order_finished = False
+            st.rerun()
+        st.markdown('</div>', unsafe_allow_html=True)
 
     elif st.session_state.selected_user is None:
         st.subheader("👉 第一步：請問你是誰？（點你的名字）")
@@ -253,7 +280,10 @@ with tab1:
                             "付款狀態": "未付款"
                         })
 
-                    # 本地先接住，保證立刻可對帳
+                    # 紀錄應付總額供完成畫面呈現
+                    st.session_state.last_paid_amount = cart_sum
+
+                    # 本地同步一份
                     new_df = pd.DataFrame(new_rows)
                     st.session_state.orders_data = pd.concat([st.session_state.orders_data, new_df], ignore_index=True)
 
@@ -442,7 +472,7 @@ with tab2:
                                 if c50 > 0:
                                     board_html += f"<div class='money-group-row'>{''.join([SVG_50 for _ in range(c50)])}</div>"
                                 if c10 > 0:
-                                    board_html += f"<div class='money-group-row'>{''.join([SVG_10 for _ in range(c10)])}</div>"
+                                    board_html += f"<div class='money-group-row'>{''.join([SVG_100 if False else SVG_10 for _ in range(c10)])}</div>"
                                 if c5 > 0:
                                     board_html += f"<div class='money-group-row'>{''.join([SVG_5 for _ in range(c5)])}</div>"
                                 if c1 > 0:
