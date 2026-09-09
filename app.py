@@ -62,9 +62,13 @@ def load_users_sheet():
     try:
         url = f"https://docs.google.com/spreadsheets/d/{SHEET_ID}/gviz/tq?tqx=out:csv&sheet=users"
         df = pd.read_csv(url)
-        return df.dropna(subset=["姓名"]) if "姓名" in df.columns else df
+        if "姓名" in df.columns:
+            df = df.dropna(subset=["姓名"])
+        if "金額限制" not in df.columns:
+            df["金額限制"] = 0
+        return df
     except:
-        return pd.DataFrame(columns=["姓名", "組別"])
+        return pd.DataFrame(columns=["姓名", "組別", "金額限制"])
 
 @st.cache_data(ttl=0)
 def load_orders_sheet():
@@ -90,10 +94,6 @@ def load_orders_sheet():
             "餐點品項", "麵類選擇", "是否加麵", "單價", "數量", "小計金額", "付款狀態"
         ])
 
-# 預設每人補助/金額上限（預設 120 元）
-if "max_budget_per_person" not in st.session_state:
-    st.session_state.max_budget_per_person = 120
-
 if "df_menu" not in st.session_state:
     st.session_state.df_menu = load_menu_sheet()
 
@@ -103,10 +103,13 @@ if "df_users" not in st.session_state:
 if "df_orders" not in st.session_state:
     st.session_state.df_orders = load_orders_sheet()
 
+# 點餐暫存狀態
 if "step" not in st.session_state:
     st.session_state.step = 1
 if "order_name" not in st.session_state:
     st.session_state.order_name = None
+if "order_user_limit" not in st.session_state:
+    st.session_state.order_user_limit = 0
 if "order_item" not in st.session_state:
     st.session_state.order_item = None
 if "order_item_price" not in st.session_state:
@@ -118,38 +121,53 @@ if "order_extra" not in st.session_state:
 
 st.title("🍱 中餐點餐與對帳管理系統")
 
-tab1, tab2, tab3, tab4, tab5 = st.tabs([
+tab1, tab2, tab3, tab4 = st.tabs([
     "🛒 友善大圖點餐", 
     "📊 明細與對帳", 
     "⚙️ 菜單管理與編輯", 
-    "👥 人員名單管理",
-    "🛡️ 規則與金額限制"
+    "👥 人員與金額限制管理"
 ])
 
 # -------------------------------------------------------------
-# 分頁 1：友善大圖點餐（含金額上限檢驗）
+# 分頁 1：友善大圖點餐（依個人專屬金額上限檢驗）
 # -------------------------------------------------------------
 with tab1:
     st.markdown(f"## 👉 目前步驟：第 {st.session_state.step} 步 / 共 4 步")
 
+    # 步驟 1：選姓名
     if st.session_state.step == 1:
         st.subheader("請問你是誰？（點選你的名字）")
-        user_list = st.session_state.df_users["姓名"].dropna().tolist()
-        if not user_list:
-            st.warning("目前尚無人員資料，請至【👥 人員名單管理】新增。")
+        df_u = st.session_state.df_users
+        if df_u.empty or "姓名" not in df_u.columns:
+            st.warning("目前尚無人員資料，請至【👥 人員與金額限制管理】新增。")
         else:
             cols = st.columns(2)
-            for idx, name in enumerate(user_list):
+            for idx, (_, u_row) in enumerate(df_u.iterrows()):
+                name = u_row["姓名"]
+                # 抓取該人員限制金額
+                raw_lim = u_row.get("金額限制", 0)
+                try:
+                    limit_val = int(float(str(raw_lim).replace("$", "").replace(",", "").strip())) if pd.notnull(raw_lim) else 0
+                except:
+                    limit_val = 0
+                
+                limit_text = f" (上限 ${limit_val})" if limit_val > 0 else ""
+                
                 with cols[idx % 2]:
                     st.markdown('<div class="big-btn">', unsafe_allow_html=True)
-                    if st.button(f"👤 {name}", key=f"user_{name}"):
+                    if st.button(f"👤 {name}{limit_text}", key=f"user_{name}"):
                         st.session_state.order_name = name
+                        st.session_state.order_user_limit = limit_val
                         st.session_state.step = 2
                         st.rerun()
                     st.markdown('</div>', unsafe_allow_html=True)
 
+    # 步驟 2：選餐點
     elif st.session_state.step == 2:
-        st.subheader(f"你好，{st.session_state.order_name}！今天想吃什麼？")
+        limit_val = st.session_state.order_user_limit
+        limit_desc = f"（你的金額上限為：${limit_val} 元）" if limit_val > 0 else "（金額無限制）"
+        st.subheader(f"你好，{st.session_state.order_name}！{limit_desc} 今天想吃什麼？")
+        
         menu_df = st.session_state.df_menu
         available_menu = menu_df[menu_df["供應狀態"] == "供應中"] if "供應狀態" in menu_df.columns else menu_df
         
@@ -174,6 +192,7 @@ with tab1:
             st.session_state.step = 1
             st.rerun()
 
+    # 步驟 3：選麵類與份量
     elif st.session_state.step == 3:
         st.subheader(f"已選餐點：{st.session_state.order_item}")
         st.write("#### 1. 想要哪種麵？")
@@ -213,15 +232,18 @@ with tab1:
                 st.session_state.step = 4
                 st.rerun()
 
+    # 步驟 4：大字核對與個人金額上限檢驗
     elif st.session_state.step == 4:
         st.subheader("請看清楚，這是你的餐點嗎？")
         extra_nd_fee = 10 if "烏龍麵" in st.session_state.order_noodle else 0
         extra_fee = 15 if "加麵" in st.session_state.order_extra else 0
         total_p = st.session_state.order_item_price + extra_nd_fee + extra_fee
 
-        # 金額限制檢核
-        max_limit = st.session_state.max_budget_per_person
-        is_over_budget = total_p > max_limit
+        # 檢核是否超出「該位同仁」的專屬上限（0 代表無限制）
+        user_limit = st.session_state.order_user_limit
+        is_over = (user_limit > 0) and (total_p > user_limit)
+
+        limit_info_text = f"（你的專屬上限：${user_limit} 元）" if user_limit > 0 else "（無上限限制）"
 
         st.markdown(f"""
         <div style="background-color: #F8FAFC; border: 2px solid #CBD5E1; border-radius: 16px; padding: 24px; font-size: 26px; line-height: 2.2;">
@@ -229,15 +251,15 @@ with tab1:
             🍲 餐點：<b>{st.session_state.order_item}</b><br>
             🍜 麵類：<b>{st.session_state.order_noodle}</b><br>
             🥣 份量：<b>{st.session_state.order_extra}</b><br>
-            💵 金額：<b style="color: {'#E02424' if is_over_budget else '#1E40AF'}; font-size: 36px;">${total_p} 元</b>
-            <span style="font-size: 20px; color: #64748B;">（每人上限：${max_limit} 元）</span>
+            💵 金額：<b style="color: {'#E02424' if is_over else '#1E40AF'}; font-size: 36px;">${total_p} 元</b>
+            <span style="font-size: 20px; color: #64748B;">{limit_info_text}</span>
         </div>
         """, unsafe_allow_html=True)
 
-        if is_over_budget:
+        if is_over:
             st.markdown(f"""
             <div class="over-budget-box">
-                ⚠️ 超過金額上限囉！目前上限為 ${max_limit} 元，請重選餐點或不加麵。
+                ⚠️ 超過你的金額限制囉！你的上限是 ${user_limit} 元，目前合計 ${total_p} 元，請重新選餐或不要加麵。
             </div>
             """, unsafe_allow_html=True)
 
@@ -248,11 +270,12 @@ with tab1:
                 st.session_state.step = 2
                 st.rerun()
         with c2:
-            # 超額時停用送出按鈕
-            if st.button("✅ 正確，按這裡送出！", type="primary", disabled=is_over_budget):
+            # 超過上限時停用按鈕，無法送出
+            if st.button("✅ 正確，按這裡送出！", type="primary", disabled=is_over):
                 user_dept = ""
-                if not st.session_state.df_users.empty and "姓名" in st.session_state.df_users.columns:
-                    match_u = st.session_state.df_users[st.session_state.df_users["姓名"] == st.session_state.order_name]
+                df_u = st.session_state.df_users
+                if not df_u.empty and "姓名" in df_u.columns:
+                    match_u = df_u[df_u["姓名"] == st.session_state.order_name]
                     if not match_u.empty and "組別" in match_u.columns:
                         user_dept = match_u["組別"].values[0]
 
@@ -372,37 +395,39 @@ with tab3:
         st.success("菜單修改已更新至系統！")
 
 # -------------------------------------------------------------
-# 分頁 4：人員名單管理
+# 分頁 4：人員名單與金額限制管理
 # -------------------------------------------------------------
 with tab4:
-    st.subheader("👥 人員名單維護")
-    with st.expander("➕ 新增同仁名單", expanded=False):
+    st.subheader("👥 人員名單與個人金額限制維護")
+    st.info("💡 說明：【金額限制】填入數字（例如 80 或 100）。若填入 0 或留空，代表該同仁點餐「無金額上限」。")
+
+    with st.expander("➕ 新增同仁與限制", expanded=False):
         with st.form("add_user_form"):
             new_user_name = st.text_input("姓名")
-            new_user_dept = st.text_input("組別 / 部門")
+            new_user_dept = st.text_input("組別 / 部門", value="向日葵")
+            new_user_limit = st.number_input("個人金額限制 (0 代表不限額)", min_value=0, value=80, step=10)
             if st.form_submit_button("新增同仁"):
                 if new_user_name:
-                    new_person = pd.DataFrame([{"姓名": new_user_name, "組別": new_user_dept}])
+                    new_person = pd.DataFrame([{
+                        "姓名": new_user_name, 
+                        "組別": new_user_dept,
+                        "金額限制": new_user_limit
+                    }])
                     st.session_state.df_users = pd.concat([st.session_state.df_users, new_person], ignore_index=True)
                     st.success(f"同仁【{new_user_name}】新增成功！")
                     st.rerun()
 
-    st.write("#### 目前同仁名單（可直接修改）：")
-    edited_users = st.data_editor(st.session_state.df_users, use_container_width=True, num_rows="dynamic", key="users_editor")
-    if st.button("💾 儲存人員名單修改"):
+    st.write("#### 目前同仁清單（可在此直接調整每個人的金額限制）：")
+    col_cfg = {
+        "金額限制": st.column_config.NumberColumn("金額限制 (0=不限)", min_value=0, step=10)
+    }
+    edited_users = st.data_editor(
+        st.session_state.df_users, 
+        column_config=col_cfg,
+        use_container_width=True, 
+        num_rows="dynamic", 
+        key="users_editor"
+    )
+    if st.button("💾 儲存人員名單與金額修改"):
         st.session_state.df_users = edited_users
-        st.success("人員名單已更新至系統！")
-
-# -------------------------------------------------------------
-# 分頁 5：規則與金額限制（管理員自訂上限）
-# -------------------------------------------------------------
-with tab5:
-    st.subheader("🛡️ 點餐規則與每人金額上限設定")
-    st.info("💡 此處設定的金額將作為同仁點餐的最高限制。若點餐總額（含換麵、加麵）超過該數值，系統將不允許送出點單。")
-    
-    current_limit = st.session_state.max_budget_per_person
-    new_limit = st.number_input("設定每人單餐最高上限金額 (元)", min_value=50, max_value=500, value=current_limit, step=5)
-    
-    if st.button("💾 儲存金額上限設定", type="primary"):
-        st.session_state.max_budget_per_person = int(new_limit)
-        st.success(f"✅ 金額上限已成功修改為：每人 ${new_limit} 元！")
+        st.success("人員名單與金額限制已更新！")
