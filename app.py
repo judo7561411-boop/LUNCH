@@ -4,7 +4,7 @@ from datetime import date
 
 st.set_page_config(page_title="中餐點餐系統", page_icon="🍱", layout="wide")
 
-# CSS 注入：台灣貨幣擬真圖樣與友善介面
+# CSS 注入：友善大字體、圖卡排版與實體貨幣展示樣式
 st.markdown("""
 <style>
     html, body, [class*="css"] {
@@ -61,159 +61,70 @@ st.markdown("""
         margin-top: 20px;
     }
 
-    /* 貨幣排列 */
-    .money-row {
+    /* 台灣貨幣實體排隊陳列（看幾個拿幾個） */
+    .money-visual-board {
+        background-color: #FFFFFF;
+        border: 3px dashed #60A5FA;
+        border-radius: 16px;
+        padding: 20px;
+        margin-top: 14px;
+        margin-bottom: 14px;
+    }
+    .money-group-row {
         display: flex;
         flex-wrap: wrap;
-        align-items: flex-start;
-        gap: 16px;
-        margin-top: 10px;
-    }
-    .money-container {
-        display: flex;
-        flex-direction: column;
         align-items: center;
+        gap: 12px;
+        margin-bottom: 16px;
+        padding-bottom: 10px;
+        border-bottom: 1px solid #F1F5F9;
     }
-    .money-count {
-        font-size: 24px;
-        font-weight: 900;
-        color: #1E293B;
-        margin-top: 6px;
+    .real-bill {
+        width: 175px;
+        height: auto;
+        border-radius: 6px;
+        box-shadow: 3px 3px 6px rgba(0,0,0,0.25);
+        margin: 4px;
     }
-
-    /* 100元 紙鈔 */
-    .tw-bill-100 {
-        background: linear-gradient(135deg, #DC2626 0%, #991B1B 100%);
-        color: #FEF08A;
-        border: 3px solid #7F1D1D;
-        border-radius: 10px;
-        width: 170px;
-        height: 85px;
-        display: flex;
-        flex-direction: column;
-        justify-content: space-between;
-        padding: 6px 10px;
-        box-shadow: 3px 3px 8px rgba(0,0,0,0.3);
-    }
-    .tw-bill-100 .top-row {
-        display: flex;
-        justify-content: space-between;
-        font-size: 14px;
-        font-weight: bold;
-    }
-    .tw-bill-100 .center-val {
-        font-size: 34px;
-        font-weight: 900;
-        text-align: center;
-        color: #FFFFFF;
-        text-shadow: 1px 1px 2px #000;
-        letter-spacing: 2px;
-    }
-    .tw-bill-100 .bot-row {
-        font-size: 12px;
-        text-align: right;
-        color: #FCA5A5;
-    }
-
-    /* 50元 硬幣 */
-    .tw-coin-50 {
-        background: radial-gradient(circle at 35% 35%, #FDE047 0%, #CA8A04 70%, #854D0E 100%);
-        color: #451A03;
-        border: 4px solid #A16207;
-        border-radius: 50%;
+    .real-coin-50 {
         width: 82px;
         height: 82px;
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        justify-content: center;
-        box-shadow: inset 0 0 0 3px #FACC15, 3px 3px 6px rgba(0,0,0,0.35);
-        text-shadow: 0 1px 1px rgba(255,255,255,0.7);
+        object-fit: contain;
+        filter: drop-shadow(2px 3px 4px rgba(0,0,0,0.3));
+        margin: 4px;
     }
-    .tw-coin-50 .coin-num {
-        font-size: 32px;
-        font-weight: 900;
-        line-height: 1;
-    }
-    .tw-coin-50 .coin-unit {
-        font-size: 13px;
-        font-weight: bold;
-    }
-
-    /* 10元 硬幣 */
-    .tw-coin-10 {
-        background: radial-gradient(circle at 35% 35%, #F8FAFC 0%, #94A3B8 70%, #475569 100%);
-        color: #0F172A;
-        border: 3px solid #64748B;
-        border-radius: 50%;
+    .real-coin-10 {
         width: 74px;
         height: 74px;
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        justify-content: center;
-        box-shadow: inset 0 0 0 2px #E2E8F0, 3px 3px 5px rgba(0,0,0,0.3);
+        object-fit: contain;
+        filter: drop-shadow(2px 3px 4px rgba(0,0,0,0.3));
+        margin: 4px;
     }
-    .tw-coin-10 .coin-num {
-        font-size: 28px;
-        font-weight: 900;
-        line-height: 1;
-    }
-    .tw-coin-10 .coin-unit {
-        font-size: 12px;
-        font-weight: bold;
-    }
-
-    /* 5元 硬幣 */
-    .tw-coin-5 {
-        background: radial-gradient(circle at 35% 35%, #F8FAFC 0%, #94A3B8 70%, #475569 100%);
-        color: #0F172A;
-        border: 3px solid #64748B;
-        border-radius: 50%;
+    .real-coin-5 {
         width: 64px;
         height: 64px;
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        justify-content: center;
-        box-shadow: inset 0 0 0 2px #E2E8F0, 2px 2px 4px rgba(0,0,0,0.3);
+        object-fit: contain;
+        filter: drop-shadow(2px 3px 4px rgba(0,0,0,0.3));
+        margin: 4px;
     }
-    .tw-coin-5 .coin-num {
-        font-size: 24px;
-        font-weight: 900;
-        line-height: 1;
-    }
-    .tw-coin-5 .coin-unit {
-        font-size: 11px;
-        font-weight: bold;
-    }
-
-    /* 1元 硬幣 */
-    .tw-coin-1 {
-        background: radial-gradient(circle at 35% 35%, #FDBA74 0%, #C2410C 70%, #7C2D12 100%);
-        color: #431407;
-        border: 3px solid #9A3412;
-        border-radius: 50%;
+    .real-coin-1 {
         width: 56px;
         height: 56px;
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        justify-content: center;
-        box-shadow: inset 0 0 0 2px #FED7AA, 2px 2px 4px rgba(0,0,0,0.3);
-        text-shadow: 0 1px 0 rgba(255,255,255,0.4);
-    }
-    .tw-coin-1 .coin-num {
-        font-size: 22px;
-        font-weight: 900;
-        line-height: 1;
-    }
-    .tw-coin-1 .coin-unit {
-        font-size: 10px;
-        font-weight: bold;
+        object-fit: contain;
+        filter: drop-shadow(2px 3px 4px rgba(0,0,0,0.3));
+        margin: 4px;
     }
 </style>
 """, unsafe_allow_html=True)
+
+# 台灣法定貨幣實際圖樣
+IMG_URLS = {
+    "100": "https://upload.wikimedia.org/wikipedia/zh/2/22/NTD_100_obverse.jpg",
+    "50": "https://upload.wikimedia.org/wikipedia/commons/e/ed/New_Taiwan_dollar_50_dollar_coin.png",
+    "10": "https://upload.wikimedia.org/wikipedia/commons/d/dd/New_Taiwan_dollar_10_dollar_coin.png",
+    "5": "https://upload.wikimedia.org/wikipedia/commons/e/e2/5_New_Taiwan_Dollar.png",
+    "1": "https://upload.wikimedia.org/wikipedia/commons/9/90/1_New_Taiwan_Dollar.png"
+}
 
 SHEET_ID = "1mHnXoG-Duq45EvwZTRVuq86rsK8T5DA9NkLnOi30wuM"
 
@@ -245,8 +156,6 @@ def load_orders():
                 break
         df = pd.read_csv(url, header=h_idx)
         df.columns = [str(c).strip() for c in df.columns]
-        
-        # 只要員工姓名或訂單編號有值就保留，避免舊資料被過濾掉
         if "員工姓名" in df.columns:
             df = df.dropna(subset=["員工姓名"])
             df = df[~df["員工姓名"].astype(str).str.contains("總計|合計", na=False)]
@@ -441,7 +350,7 @@ with tab1:
                             st.rerun()
 
 # -------------------------------------------------------------
-# 分頁 2：明細與對帳（修復舊資料檢視與硬幣原始碼）
+# 分頁 2：明細與對帳（實體貨幣看幾顆拿幾顆）
 # -------------------------------------------------------------
 with tab2:
     st.subheader("📊 每日點餐明細與收款找零對帳")
@@ -464,7 +373,6 @@ with tab2:
     if df_orders.empty or "員工姓名" not in df_orders.columns:
         st.info("尚無任何訂單紀錄。請先在【🛒 友善大圖點餐】送出餐點。")
     else:
-        # 篩選訂單：若勾選顯示全部，則不卡日期
         if show_all:
             current_orders = df_orders.copy()
             date_mask = pd.Series([True] * len(df_orders), index=df_orders.index)
@@ -501,9 +409,9 @@ with tab2:
             st.write("---")
 
             # ---------------------------------------------------------
-            # 台灣實體貨幣找零計算工具
+            # 台灣實體貨幣找零輔助器（看幾個拿幾個）
             # ---------------------------------------------------------
-            with st.expander("💵 現場收款與【台灣鈔票/硬幣】找零輔助器", expanded=True):
+            with st.expander("💵 現場收款與【新臺幣實際鈔票/硬幣】找零輔助器", expanded=True):
                 unpaid_list = current_orders[current_orders["付款狀態"] != "已付款"]
                 
                 if unpaid_list.empty:
@@ -544,11 +452,11 @@ with tab2:
                         if change >= 0:
                             st.markdown(f"""
                             <div style="background-color: #ECFDF5; border: 2px solid #34D399; border-radius: 12px; padding: 14px; margin-top: 10px;">
-                                🪙 應找零錢總計：<b style="color: #059669; font-size: 34px;">${change}</b> 元
+                                🪙 應找零錢：<b style="color: #059669; font-size: 34px;">${change}</b> 元
                             </div>
                             """, unsafe_allow_html=True)
 
-                            # 面額拆解
+                            # 拆解面額
                             rem_c = change
                             c100 = rem_c // 100
                             rem_c %= 100
@@ -560,23 +468,38 @@ with tab2:
                             c1 = rem_c % 5
 
                             if change > 0:
-                                st.write("#### 👉 請拿給同仁這些鈔票與硬幣：")
-                                pieces = []
-                                if c100 > 0:
-                                    pieces.append(f"<div class='money-container'><div class='tw-bill-100'><div class='top-row'><span>100</span><span>中央印製廠</span></div><div class='center-val'>100</div><div class='bot-row'>壹佰圓</div></div><div class='money-count'>× {c100} 張</div></div>")
-                                if c50 > 0:
-                                    pieces.append(f"<div class='money-container'><div class='tw-coin-50'><div class='coin-num'>50</div><div class='coin-unit'>圓</div></div><div class='money-count'>× {c50} 枚</div></div>")
-                                if c10 > 0:
-                                    pieces.append(f"<div class='money-container'><div class='tw-coin-10'><div class='coin-num'>10</div><div class='coin-unit'>圓</div></div><div class='money-count'>× {c10} 枚</div></div>")
-                                if c5 > 0:
-                                    pieces.append(f"<div class='money-container'><div class='tw-coin-5'><div class='coin-num'>5</div><div class='coin-unit'>圓</div></div><div class='money-count'>× {c5} 枚</div></div>")
-                                if c1 > 0:
-                                    pieces.append(f"<div class='money-container'><div class='tw-coin-1'><div class='coin-num'>1</div><div class='coin-unit'>圓</div></div><div class='money-count'>× {c1} 枚</div></div>")
+                                st.markdown("### 👉 請照著畫面「看到幾個就拿幾個」找給同仁：")
+                                board_html = "<div class='money-visual-board'>"
                                 
-                                html_content = f"<div class='money-row'>{''.join(pieces)}</div>"
-                                st.markdown(html_content, unsafe_allow_html=True)
+                                # 100 元鈔票（有幾張排幾張）
+                                if c100 > 0:
+                                    bills_html = "".join([f"<img src='{IMG_URLS['100']}' class='real-bill'/>" for _ in range(c100)])
+                                    board_html += f"<div class='money-group-row'>{bills_html}</div>"
+                                
+                                # 50 元硬幣（有幾顆排幾顆）
+                                if c50 > 0:
+                                    c50_html = "".join([f"<img src='{IMG_URLS['50']}' class='real-coin-50'/>" for _ in range(c50)])
+                                    board_html += f"<div class='money-group-row'>{c50_html}</div>"
+
+                                # 10 元硬幣（有幾顆排幾顆）
+                                if c10 > 0:
+                                    c10_html = "".join([f"<img src='{IMG_URLS['10']}' class='real-coin-10'/>" for _ in range(c10)])
+                                    board_html += f"<div class='money-group-row'>{c10_html}</div>"
+
+                                # 5 元硬幣（有幾顆排幾顆）
+                                if c5 > 0:
+                                    c5_html = "".join([f"<img src='{IMG_URLS['5']}' class='real-coin-50'/>" for _ in range(c5)])
+                                    board_html += f"<div class='money-group-row'>{c5_html}</div>"
+
+                                # 1 元硬幣（有幾顆排幾顆）
+                                if c1 > 0:
+                                    c1_html = "".join([f"<img src='{IMG_URLS['1']}' class='real-coin-1'/>" for _ in range(c1)])
+                                    board_html += f"<div class='money-group-row'>{c1_html}</div>"
+
+                                board_html += "</div>"
+                                st.markdown(board_html, unsafe_allow_html=True)
                             else:
-                                st.info("👌 剛好收齊，不需要找零！")
+                                st.info("👌 剛好收齊，不需要找錢！")
 
                             st.write("")
                             if st.button(f"✅ 確認收款完畢（將 {target_user} 設為已付款）", type="primary", use_container_width=True):
