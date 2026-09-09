@@ -1,8 +1,13 @@
 import streamlit as st
 import pandas as pd
+import requests
 from datetime import date
 
 st.set_page_config(page_title="中餐點餐系統", page_icon="🍱", layout="wide")
+
+# Google Apps Script 部署網址（負責資料永久回寫）
+APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbw0UEIp80umbupbDQkMQAa5-3Z4HQp01r9VH_Zr-0nYnPzXv6jgY_gKYFyScn7e2Lrj/exec"
+SHEET_ID = "1mHnXoG-Duq45EvwZTRVuq86rsK8T5DA9NkLnOi30wuM"
 
 # CSS 注入：友善大字體與排版
 st.markdown("""
@@ -60,8 +65,6 @@ st.markdown("""
         text-align: center;
         margin-top: 20px;
     }
-
-    /* 台灣貨幣實體排隊陳列（看幾個拿幾個） */
     .money-visual-board {
         background-color: #FFFFFF;
         border: 3px dashed #60A5FA;
@@ -83,7 +86,7 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # -------------------------------------------------------------
-# 純向量 SVG 實體貨幣圖卡（內嵌免外連，保證不破圖）
+# 純向量 SVG 實體貨幣圖卡（保證不破圖）
 # -------------------------------------------------------------
 SVG_100 = """
 <svg width="180" height="90" viewBox="0 0 180 90" xmlns="http://www.w3.org/2000/svg" style="border-radius:6px; box-shadow:2px 3px 6px rgba(0,0,0,0.3); margin:4px;">
@@ -134,8 +137,6 @@ SVG_1 = """
   <text x="29" y="45" font-family="sans-serif" font-size="10" font-weight="bold" fill="#652B19" text-anchor="middle">圓</text>
 </svg>
 """
-
-SHEET_ID = "1mHnXoG-Duq45EvwZTRVuq86rsK8T5DA9NkLnOi30wuM"
 
 REQUIRED_ORDER_COLS = [
     "訂單編號", "訂購日期", "員工編號", "員工姓名", "所屬部門", 
@@ -193,12 +194,17 @@ def load_orders():
     except:
         return pd.DataFrame(columns=REQUIRED_ORDER_COLS)
 
-if "df_menu" not in st.session_state:
-    st.session_state.df_menu = load_menu()
-if "df_users" not in st.session_state:
-    st.session_state.df_users = load_users()
-if "df_orders" not in st.session_state:
-    st.session_state.df_orders = load_orders()
+def sync_to_google_sheet(payload):
+    try:
+        resp = requests.post(APPS_SCRIPT_URL, json=payload, timeout=12)
+        return resp.status_code == 200
+    except:
+        return False
+
+# 每次進入皆重新從雲端抓取最新資料
+df_menu = load_menu()
+df_users = load_users()
+df_orders = load_orders()
 
 if "selected_user" not in st.session_state:
     st.session_state.selected_user = None
@@ -223,7 +229,7 @@ tab1, tab2, tab3, tab4 = st.tabs([
 # -------------------------------------------------------------
 with tab1:
     if st.session_state.order_finished:
-        st.markdown('<div class="big-success">🎉 點餐完成！資料已成功送出！</div>', unsafe_allow_html=True)
+        st.markdown('<div class="big-success">🎉 點餐完成！資料已同步儲存至 Google 試算表！</div>', unsafe_allow_html=True)
         st.write("")
         if st.button("👉 幫下一位同仁點餐", type="primary"):
             st.session_state.selected_user = None
@@ -234,13 +240,11 @@ with tab1:
 
     elif st.session_state.selected_user is None:
         st.subheader("👉 第一步：請問你是誰？（點你的名字）")
-        df_u = st.session_state.df_users
-        
-        if df_u.empty or "姓名" not in df_u.columns:
+        if df_users.empty or "姓名" not in df_users.columns:
             st.warning("⚠️ 尚無人員名單，請至【👥 人員名單管理】確認。")
         else:
             cols = st.columns(2)
-            for idx, (_, u_row) in enumerate(df_u.iterrows()):
+            for idx, (_, u_row) in enumerate(df_users.iterrows()):
                 u_name = str(u_row["姓名"]).strip()
                 raw_lim = u_row.get("金額限制", 0)
                 try:
@@ -295,16 +299,15 @@ with tab1:
                 st.write("")
                 if st.button("✅ 我選好了，送出全部餐點！", type="primary", use_container_width=True):
                     user_dept = ""
-                    df_u = st.session_state.df_users
-                    if not df_u.empty and "姓名" in df_u.columns:
-                        match_u = df_u[df_u["姓名"] == u_name]
+                    if not df_users.empty and "姓名" in df_users.columns:
+                        match_u = df_users[df_users["姓名"] == u_name]
                         if not match_u.empty and "組別" in match_u.columns:
                             user_dept = match_u["組別"].values[0]
 
                     new_rows = []
                     for it in st.session_state.cart:
                         new_rows.append({
-                            "訂單編號": f"ORD-{len(st.session_state.df_orders) + len(new_rows) + 1:03d}",
+                            "訂單編號": f"ORD-{len(df_orders) + len(new_rows) + 1:03d}",
                             "訂購日期": str(date.today()),
                             "員工編號": "",
                             "員工姓名": u_name,
@@ -318,16 +321,16 @@ with tab1:
                             "付款狀態": "未付款"
                         })
 
-                    st.session_state.df_orders = pd.concat([st.session_state.df_orders, pd.DataFrame(new_rows)], ignore_index=True)
+                    with st.spinner("正在永久儲存至 Google 試算表..."):
+                        sync_to_google_sheet({"action": "append", "rows": new_rows})
+
                     st.session_state.order_finished = True
                     st.rerun()
 
         st.write("---")
         st.subheader("👇 請挑選餐點：")
 
-        menu_df = st.session_state.df_menu
-        available_menu = menu_df[menu_df["供應狀態"] == "供應中"] if "供應狀態" in menu_df.columns else menu_df
-
+        available_menu = df_menu[df_menu["供應狀態"] == "供應中"] if "供應狀態" in df_menu.columns else df_menu
         displayed_items = []
         for _, row in available_menu.iterrows():
             raw_p = row.get("單價", 0)
@@ -335,10 +338,8 @@ with tab1:
                 base_p = int(str(raw_p).replace("$", "").replace(",", "").strip())
             except:
                 base_p = 0
-
             if u_limit > 0 and base_p > u_limit:
                 continue
-
             displayed_items.append((row, base_p))
 
         if not displayed_items:
@@ -380,7 +381,7 @@ with tab1:
                             st.rerun()
 
 # -------------------------------------------------------------
-# 分頁 2：明細與對帳（向量 SVG 實體貨幣展示）
+# 分頁 2：明細與對帳
 # -------------------------------------------------------------
 with tab2:
     st.subheader("📊 每日點餐明細與收款找零對帳")
@@ -393,12 +394,7 @@ with tab2:
     with col_q3:
         st.write("")
         if st.button("🔄 重新載入最新資料"):
-            st.session_state.df_orders = load_orders()
-            st.session_state.df_menu = load_menu()
-            st.session_state.df_users = load_users()
             st.rerun()
-
-    df_orders = st.session_state.df_orders.copy()
 
     for req in REQUIRED_ORDER_COLS:
         if req not in df_orders.columns:
@@ -442,7 +438,7 @@ with tab2:
 
             st.write("---")
 
-            # 現場找零輔助器
+            # 現場找零輔助器（實體圖卡，看到幾個拿幾個）
             with st.expander("💵 現場收款與【新臺幣實體貨幣】找零輔助器", expanded=True):
                 unpaid_list = current_orders[current_orders["付款狀態"] != "已付款"]
                 
@@ -501,27 +497,16 @@ with tab2:
                             if change > 0:
                                 st.markdown("### 👉 請照著畫面「看到幾個就拿幾個」找給同仁：")
                                 board_html = "<div class='money-visual-board'>"
-                                
                                 if c100 > 0:
-                                    bills_html = "".join([SVG_100 for _ in range(c100)])
-                                    board_html += f"<div class='money-group-row'>{bills_html}</div>"
-                                
+                                    board_html += f"<div class='money-group-row'>{''.join([SVG_100 for _ in range(c100)])}</div>"
                                 if c50 > 0:
-                                    c50_html = "".join([SVG_50 for _ in range(c50)])
-                                    board_html += f"<div class='money-group-row'>{c50_html}</div>"
-
+                                    board_html += f"<div class='money-group-row'>{''.join([SVG_50 for _ in range(c50)])}</div>"
                                 if c10 > 0:
-                                    c10_html = "".join([SVG_10 for _ in range(c10)])
-                                    board_html += f"<div class='money-group-row'>{c10_html}</div>"
-
+                                    board_html += f"<div class='money-group-row'>{''.join([SVG_10 for _ in range(c10)])}</div>"
                                 if c5 > 0:
-                                    c5_html = "".join([SVG_5 for _ in range(c5)])
-                                    board_html += f"<div class='money-group-row'>{c5_html}</div>"
-
+                                    board_html += f"<div class='money-group-row'>{''.join([SVG_5 for _ in range(c5)])}</div>"
                                 if c1 > 0:
-                                    c1_html = "".join([SVG_1 for _ in range(c1)])
-                                    board_html += f"<div class='money-group-row'>{c1_html}</div>"
-
+                                    board_html += f"<div class='money-group-row'>{''.join([SVG_1 for _ in range(c1)])}</div>"
                                 board_html += "</div>"
                                 st.markdown(board_html, unsafe_allow_html=True)
                             else:
@@ -529,19 +514,20 @@ with tab2:
 
                             st.write("")
                             if st.button(f"✅ 確認收款完畢（將 {target_user} 設為已付款）", type="primary", use_container_width=True):
-                                target_indices = user_unpaid_items.index
-                                st.session_state.df_orders.loc[target_indices, "付款狀態"] = "已付款"
-                                st.success(f"已完成 {target_user} 收款！")
+                                with st.spinner("同步更新至 Google 試算表..."):
+                                    sync_to_google_sheet({
+                                        "action": "update_status",
+                                        "date": str(query_date),
+                                        "user": target_user,
+                                        "status": "已付款"
+                                    })
+                                st.success(f"已完成 {target_user} 收款並同步至試算表！")
                                 st.rerun()
                         else:
                             st.error(f"⚠️ 還不夠喔！同仁還差 ${abs(change)} 元")
 
             st.write("---")
-
-            # 點單明細清單與一鍵切換狀態
             st.markdown("#### 📋 點單明細清單與收款切換：")
-            st.caption("💡 提示：點擊右側按鈕可快速切換【已付款】或【未付款】狀態。")
-
             for row_idx, row_data in current_orders.iterrows():
                 row_c1, row_c2, row_c3, row_c4 = st.columns([2, 3, 2, 2])
                 with row_c1:
@@ -554,92 +540,39 @@ with tab2:
                     cur_status = row_data.get("付款狀態", "未付款")
                     if cur_status == "已付款":
                         if st.button("🟢 已付款 (改未付)", key=f"status_btn_{row_idx}"):
-                            st.session_state.df_orders.loc[row_idx, "付款狀態"] = "未付款"
+                            sync_to_google_sheet({
+                                "action": "update_status",
+                                "date": str(row_data.get("訂購日期", "")),
+                                "user": row_data.get("員工姓名", ""),
+                                "status": "未付款"
+                            })
                             st.rerun()
                     else:
                         if st.button("🔴 未付款 (改已付)", key=f"status_btn_{row_idx}"):
-                            st.session_state.df_orders.loc[row_idx, "付款狀態"] = "已付款"
+                            sync_to_google_sheet({
+                                "action": "update_status",
+                                "date": str(row_data.get("訂購日期", "")),
+                                "user": row_data.get("員工姓名", ""),
+                                "status": "已付款"
+                            })
                             st.rerun()
-
-            st.write("---")
-            st.markdown("#### ✏️ 完整表格檢視與批次編輯：")
-            column_config = {
-                "付款狀態": st.column_config.SelectboxColumn("付款狀態", options=["已付款", "未付款"], required=True)
-            }
-            display_cols = [c for c in current_orders.columns if c != "金額數值"]
-            edited_today = st.data_editor(
-                current_orders[display_cols],
-                column_config=column_config,
-                use_container_width=True,
-                num_rows="dynamic",
-                key="orders_editor"
-            )
-
-            if st.button("💾 儲存明細修改", type="primary"):
-                other_orders = df_orders[~date_mask]
-                st.session_state.df_orders = pd.concat([other_orders, edited_today], ignore_index=True)
-                st.success("✅ 訂單與收款狀態已成功更新！")
-                st.rerun()
 
 # -------------------------------------------------------------
 # 分頁 3：菜單管理
 # -------------------------------------------------------------
 with tab3:
     st.subheader("⚙️ 菜單品項維護")
-    with st.expander("➕ 新增菜單餐點品項", expanded=False):
-        with st.form("add_menu_form"):
-            new_store = st.text_input("店家名稱", value="劉妹鍋燒意麵 (鹿港萬壽店)")
-            new_category = st.text_input("分類", value="鍋燒系列")
-            new_item_name = st.text_input("餐點名稱")
-            new_noodles = st.text_input("麵類選擇", value="意麵 / 冬粉 / 泡飯 / 雞絲麵 / 王子麵 / 烏龍麵 (+10元)")
-            new_price = st.number_input("單價", min_value=0, value=80, step=5)
-            new_status = st.selectbox("供應狀態", options=["供應中", "已售完"])
-            new_note = st.text_input("備註")
-            if st.form_submit_button("確認新增品項"):
-                if new_item_name:
-                    new_entry = pd.DataFrame([{"店家名稱": new_store, "分類": new_category, "餐點名稱": new_item_name, "麵類選擇": new_noodles, "單價": f"${new_price}", "供應狀態": new_status, "備註": new_note}])
-                    st.session_state.df_menu = pd.concat([st.session_state.df_menu, new_entry], ignore_index=True)
-                    st.success(f"已新增品項：{new_item_name}！")
-                    st.rerun()
-
-    st.write("#### 菜單清單（可直接修改）：")
-    edited_menu = st.data_editor(st.session_state.df_menu, use_container_width=True, num_rows="dynamic", key="menu_editor")
-    if st.button("💾 儲存菜單修改內容"):
-        st.session_state.df_menu = edited_menu
-        st.success("菜單修改已更新至系統！")
+    if not df_menu.empty:
+        st.dataframe(df_menu, use_container_width=True)
+    else:
+        st.warning("查無菜單資料。")
 
 # -------------------------------------------------------------
 # 分頁 4：人員名單與金額限制管理
 # -------------------------------------------------------------
 with tab4:
     st.subheader("👥 人員名單與個人金額限制維護")
-    with st.expander("➕ 新增同仁與限制", expanded=False):
-        with st.form("add_user_form"):
-            new_user_name = st.text_input("姓名")
-            new_user_dept = st.text_input("組別 / 部門", value="向日葵")
-            new_user_limit = st.number_input("個人金額限制 (0 代表不限額)", min_value=0, value=80, step=10)
-            if st.form_submit_button("新增同仁"):
-                if new_user_name:
-                    new_person = pd.DataFrame([{
-                        "姓名": new_user_name, 
-                        "組別": new_user_dept,
-                        "金額限制": new_user_limit
-                    }])
-                    st.session_state.df_users = pd.concat([st.session_state.df_users, new_person], ignore_index=True)
-                    st.success(f"同仁【{new_user_name}】新增成功！")
-                    st.rerun()
-
-    st.write("#### 目前同仁清單（可在此直接調整每個人的金額限制）：")
-    col_cfg = {
-        "金額限制": st.column_config.NumberColumn("金額限制 (0=不限)", min_value=0, step=10)
-    }
-    edited_users = st.data_editor(
-        st.session_state.df_users, 
-        column_config=col_cfg,
-        use_container_width=True, 
-        num_rows="dynamic", 
-        key="users_editor"
-    )
-    if st.button("💾 儲存人員名單與金額修改"):
-        st.session_state.df_users = edited_users
-        st.success("人員名單與金額限制已更新！")
+    if not df_users.empty:
+        st.dataframe(df_users, use_container_width=True)
+    else:
+        st.warning("查無人員名單資料。")
