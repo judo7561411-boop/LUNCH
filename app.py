@@ -100,7 +100,6 @@ def parse_price(val):
         return 0
 
 def parse_extra_price(option_text):
-    """解析字串中的加價金額，如 (+10元) -> 10"""
     match = re.search(r"\+(\d+)", str(option_text))
     return int(match.group(1)) if match else 0
 
@@ -109,6 +108,12 @@ def load_menu():
         t = int(time.time())
         url = f"https://docs.google.com/spreadsheets/d/{SHEET_ID}/gviz/tq?tqx=out:csv&sheet=menu&_t={t}"
         df = pd.read_csv(url)
+        df.columns = [str(c).strip() for c in df.columns]
+        
+        # 兼容「種類選擇」與「麵類選擇」
+        if "種類選擇" in df.columns and "麵類選擇" not in df.columns:
+            df.rename(columns={"種類選擇": "麵類選擇"}, inplace=True)
+            
         return df.dropna(subset=["餐點名稱"]) if "餐點名稱" in df.columns else df
     except:
         return pd.DataFrame()
@@ -146,6 +151,8 @@ def load_orders_from_sheet():
                 df.rename(columns={col: "小計金額"}, inplace=True)
             elif "狀態" in col and "付款狀態" not in df.columns:
                 df.rename(columns={col: "付款狀態"}, inplace=True)
+            elif "種類" in col and "麵類選擇" not in df.columns:
+                df.rename(columns={col: "麵類選擇"}, inplace=True)
 
         for req in REQUIRED_ORDER_COLS:
             if req not in df.columns:
@@ -417,15 +424,21 @@ with tab1:
                 item_name = m_row["餐點名稱"]
                 
                 # -----------------------------------------------------------------
-                # 動態解析該餐點在 menu 試算表中的專屬種類 / 麵類選項
+                # 兼容搜尋「種類選擇」或「麵類選擇」
                 # -----------------------------------------------------------------
-                raw_options = str(m_row.get("麵類選擇", "")).strip()
+                raw_options = ""
+                if "種類選擇" in m_row:
+                    raw_options = str(m_row["種類選擇"]).strip()
+                elif "麵類選擇" in m_row:
+                    raw_options = str(m_row["麵類選擇"]).strip()
+
                 if raw_options and raw_options not in ["-", "nan", "無", "固定"]:
+                    # 支援依照 / , 、 | 分隔種類
                     type_options = [opt.strip() for opt in re.split(r"[/,、|]+", raw_options) if opt.strip()]
                 else:
                     type_options = ["標準配置"]
 
-                # 判斷是否提供加麵（若是飲料或飯便當則預設不提供加麵）
+                # 智慧判斷是否提供加麵選項
                 is_noodle_dish = any(k in item_name or k in raw_options for k in ["麵", "粉", "冬粉", "泡飯"])
                 
                 with cols[idx % 2]:
@@ -447,7 +460,6 @@ with tab1:
                                 ex_choice = "不加麵"
                                 st.caption("（本品項為固定份量）")
 
-                        # 計算動態加價
                         extra_nd = parse_extra_price(nd_choice)
                         extra_ex = 15 if ex_choice == "要加麵 (+15元)" else 0
                         final_price = base_p + extra_nd + extra_ex
@@ -709,7 +721,7 @@ with tab2:
 # -------------------------------------------------------------
 with tab3:
     st.subheader("⚙️ 菜單品項維護")
-    st.caption("💡 提示：在【麵類選擇】欄位中填寫該餐點可選的種類（以斜線 / 隔開，如：意麵 / 冬粉 / 烏龍麵 (+10元)），系統點餐時就會自動拆解成獨立選單！")
+    st.caption("💡 提示：在【種類選擇】欄位中填寫該餐點可選的種類（以斜線 / 隔開，如：燴飯/燴麵 或 意麵/冬粉/泡飯），點餐時就會自動拆解成專屬選單！")
     if not df_menu.empty:
         st.dataframe(df_menu, use_container_width=True)
     else:
