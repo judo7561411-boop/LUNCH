@@ -4,7 +4,7 @@ from datetime import date
 
 st.set_page_config(page_title="中餐點餐系統", page_icon="🍱", layout="wide")
 
-# CSS 注入：高擬真台灣貨幣圖卡與大數字
+# CSS 注入：台灣貨幣擬真圖樣與友善介面
 st.markdown("""
 <style>
     html, body, [class*="css"] {
@@ -61,12 +61,18 @@ st.markdown("""
         margin-top: 20px;
     }
 
-    /* 貨幣容器 */
+    /* 貨幣排列 */
+    .money-row {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: flex-start;
+        gap: 16px;
+        margin-top: 10px;
+    }
     .money-container {
         display: flex;
         flex-direction: column;
         align-items: center;
-        margin: 10px 14px;
     }
     .money-count {
         font-size: 24px;
@@ -88,7 +94,6 @@ st.markdown("""
         justify-content: space-between;
         padding: 6px 10px;
         box-shadow: 3px 3px 8px rgba(0,0,0,0.3);
-        font-family: sans-serif;
     }
     .tw-bill-100 .top-row {
         display: flex;
@@ -110,7 +115,7 @@ st.markdown("""
         color: #FCA5A5;
     }
 
-    /* 50元 硬幣 (金色) */
+    /* 50元 硬幣 */
     .tw-coin-50 {
         background: radial-gradient(circle at 35% 35%, #FDE047 0%, #CA8A04 70%, #854D0E 100%);
         color: #451A03;
@@ -135,14 +140,14 @@ st.markdown("""
         font-weight: bold;
     }
 
-    /* 10元 硬幣 (銀色中圓) */
+    /* 10元 硬幣 */
     .tw-coin-10 {
         background: radial-gradient(circle at 35% 35%, #F8FAFC 0%, #94A3B8 70%, #475569 100%);
         color: #0F172A;
         border: 3px solid #64748B;
         border-radius: 50%;
-        width: 72px;
-        height: 72px;
+        width: 74px;
+        height: 74px;
         display: flex;
         flex-direction: column;
         align-items: center;
@@ -159,14 +164,14 @@ st.markdown("""
         font-weight: bold;
     }
 
-    /* 5元 硬幣 (銀色小圓) */
+    /* 5元 硬幣 */
     .tw-coin-5 {
         background: radial-gradient(circle at 35% 35%, #F8FAFC 0%, #94A3B8 70%, #475569 100%);
         color: #0F172A;
         border: 3px solid #64748B;
         border-radius: 50%;
-        width: 62px;
-        height: 62px;
+        width: 64px;
+        height: 64px;
         display: flex;
         flex-direction: column;
         align-items: center;
@@ -183,14 +188,14 @@ st.markdown("""
         font-weight: bold;
     }
 
-    /* 1元 硬幣 (銅色小圓) */
+    /* 1元 硬幣 */
     .tw-coin-1 {
         background: radial-gradient(circle at 35% 35%, #FDBA74 0%, #C2410C 70%, #7C2D12 100%);
         color: #431407;
         border: 3px solid #9A3412;
         border-radius: 50%;
-        width: 54px;
-        height: 54px;
+        width: 56px;
+        height: 56px;
         display: flex;
         flex-direction: column;
         align-items: center;
@@ -234,13 +239,17 @@ def load_orders():
         raw_df = pd.read_csv(url, header=None)
         h_idx = 3
         for i in range(min(10, len(raw_df))):
-            if any("訂單編號" in str(v) for v in raw_df.iloc[i].astype(str)):
+            row_vals = [str(x).strip() for x in raw_df.iloc[i].tolist()]
+            if "訂單編號" in row_vals or "員工姓名" in row_vals:
                 h_idx = i
                 break
         df = pd.read_csv(url, header=h_idx)
-        if "訂單編號" in df.columns:
-            df = df.dropna(subset=["訂單編號"])
-            df = df[df["訂單編號"].astype(str).str.startswith("ORD")]
+        df.columns = [str(c).strip() for c in df.columns]
+        
+        # 只要員工姓名或訂單編號有值就保留，避免舊資料被過濾掉
+        if "員工姓名" in df.columns:
+            df = df.dropna(subset=["員工姓名"])
+            df = df[~df["員工姓名"].astype(str).str.contains("總計|合計", na=False)]
         return df
     except:
         return pd.DataFrame()
@@ -432,16 +441,17 @@ with tab1:
                             st.rerun()
 
 # -------------------------------------------------------------
-# 分頁 2：明細與對帳（擬真台灣貨幣圖卡找零）
+# 分頁 2：明細與對帳（修復舊資料檢視與硬幣原始碼）
 # -------------------------------------------------------------
 with tab2:
     st.subheader("📊 每日點餐明細與收款找零對帳")
 
-    col_q1, col_q2 = st.columns([2, 1])
+    col_q1, col_q2, col_q3 = st.columns([2, 1, 1])
     with col_q1:
         query_date = st.date_input("選擇欲對帳或查詢的日期", value=date.today())
     with col_q2:
-        st.write("")
+        show_all = st.checkbox("檢視所有歷史訂單", value=False)
+    with col_q3:
         st.write("")
         if st.button("🔄 重新載入最新資料"):
             st.session_state.df_orders = load_orders()
@@ -451,14 +461,21 @@ with tab2:
 
     df_orders = st.session_state.df_orders
 
-    if df_orders.empty or "訂購日期" not in df_orders.columns:
-        st.info("尚無任何訂單紀錄。")
+    if df_orders.empty or "員工姓名" not in df_orders.columns:
+        st.info("尚無任何訂單紀錄。請先在【🛒 友善大圖點餐】送出餐點。")
     else:
-        date_mask = df_orders["訂購日期"].astype(str) == str(query_date)
-        current_orders = df_orders[date_mask].copy()
+        # 篩選訂單：若勾選顯示全部，則不卡日期
+        if show_all:
+            current_orders = df_orders.copy()
+            date_mask = pd.Series([True] * len(df_orders), index=df_orders.index)
+        else:
+            q_str = str(query_date).replace("-", "/")
+            d_col = df_orders["訂購日期"].astype(str).str.replace("-", "/")
+            date_mask = (d_col == q_str) | (df_orders["訂購日期"].astype(str) == str(query_date))
+            current_orders = df_orders[date_mask].copy()
 
         if current_orders.empty:
-            st.info(f"【{query_date}】當日尚無任何點單紀錄。")
+            st.info(f"【{query_date}】尚無點單紀錄。（若要檢視之前輸入的舊資料，請勾選右上角「檢視所有歷史訂單」）")
         else:
             def parse_money(v):
                 try:
@@ -476,7 +493,7 @@ with tab2:
             unpaid_count = total_items - len(paid_orders)
 
             m1, m2, m3, m4 = st.columns(4)
-            m1.metric("當日訂單總額", f"${total_money:,} 元")
+            m1.metric("查詢訂單總額", f"${total_money:,} 元")
             m2.metric("總訂單數", f"{total_items} 筆")
             m3.metric("已收款總額", f"${paid_money:,} 元", f"{len(paid_orders)} 筆已收")
             m4.metric("待收餘額 (未收)", f"${unpaid_money:,} 元", f"{unpaid_count} 筆待收", delta_color="inverse")
@@ -484,13 +501,13 @@ with tab2:
             st.write("---")
 
             # ---------------------------------------------------------
-            # 台灣實體貨幣找零輔助器
+            # 台灣實體貨幣找零計算工具
             # ---------------------------------------------------------
-            with st.expander("💵 現場收款與【台灣鈔票/硬幣】找零輔助器（點擊展開）", expanded=True):
+            with st.expander("💵 現場收款與【台灣鈔票/硬幣】找零輔助器", expanded=True):
                 unpaid_list = current_orders[current_orders["付款狀態"] != "已付款"]
                 
                 if unpaid_list.empty:
-                    st.success("🎉 今日所有訂單皆已全數收款完畢！")
+                    st.success("🎉 此檢視範圍內的所有訂單皆已全數收款完畢！")
                 else:
                     user_options = unpaid_list["員工姓名"].unique().tolist()
                     calc_col1, calc_col2 = st.columns([1, 1])
@@ -531,7 +548,7 @@ with tab2:
                             </div>
                             """, unsafe_allow_html=True)
 
-                            # 拆解貨幣面額 (100, 50, 10, 5, 1)
+                            # 面額拆解
                             rem_c = change
                             c100 = rem_c // 100
                             rem_c %= 100
@@ -544,61 +561,20 @@ with tab2:
 
                             if change > 0:
                                 st.write("#### 👉 請拿給同仁這些鈔票與硬幣：")
-                                visual_html = "<div style='display: flex; flex-wrap: wrap; align-items: flex-start; margin-top: 10px;'>"
-                                
+                                pieces = []
                                 if c100 > 0:
-                                    visual_html += f"""
-                                    <div class='money-container'>
-                                        <div class='tw-bill-100'>
-                                            <div class='top-row'><span>100</span><span>中央印製廠</span></div>
-                                            <div class='center-val'>100</div>
-                                            <div class='bot-row'>壹佰圓</div>
-                                        </div>
-                                        <div class='money-count'>× {c100} 張</div>
-                                    </div>
-                                    """
+                                    pieces.append(f"<div class='money-container'><div class='tw-bill-100'><div class='top-row'><span>100</span><span>中央印製廠</span></div><div class='center-val'>100</div><div class='bot-row'>壹佰圓</div></div><div class='money-count'>× {c100} 張</div></div>")
                                 if c50 > 0:
-                                    visual_html += f"""
-                                    <div class='money-container'>
-                                        <div class='tw-coin-50'>
-                                            <div class='coin-num'>50</div>
-                                            <div class='coin-unit'>圓</div>
-                                        </div>
-                                        <div class='money-count'>× {c50} 枚</div>
-                                    </div>
-                                    """
+                                    pieces.append(f"<div class='money-container'><div class='tw-coin-50'><div class='coin-num'>50</div><div class='coin-unit'>圓</div></div><div class='money-count'>× {c50} 枚</div></div>")
                                 if c10 > 0:
-                                    visual_html += f"""
-                                    <div class='money-container'>
-                                        <div class='tw-coin-10'>
-                                            <div class='coin-num'>10</div>
-                                            <div class='coin-unit'>圓</div>
-                                        </div>
-                                        <div class='money-count'>× {c10} 枚</div>
-                                    </div>
-                                    """
+                                    pieces.append(f"<div class='money-container'><div class='tw-coin-10'><div class='coin-num'>10</div><div class='coin-unit'>圓</div></div><div class='money-count'>× {c10} 枚</div></div>")
                                 if c5 > 0:
-                                    visual_html += f"""
-                                    <div class='money-container'>
-                                        <div class='tw-coin-5'>
-                                            <div class='coin-num'>5</div>
-                                            <div class='coin-unit'>圓</div>
-                                        </div>
-                                        <div class='money-count'>× {c5} 枚</div>
-                                    </div>
-                                    """
+                                    pieces.append(f"<div class='money-container'><div class='tw-coin-5'><div class='coin-num'>5</div><div class='coin-unit'>圓</div></div><div class='money-count'>× {c5} 枚</div></div>")
                                 if c1 > 0:
-                                    visual_html += f"""
-                                    <div class='money-container'>
-                                        <div class='tw-coin-1'>
-                                            <div class='coin-num'>1</div>
-                                            <div class='coin-unit'>圓</div>
-                                        </div>
-                                        <div class='money-count'>× {c1} 枚</div>
-                                    </div>
-                                    """
-                                visual_html += "</div>"
-                                st.markdown(visual_html, unsafe_allow_html=True)
+                                    pieces.append(f"<div class='money-container'><div class='tw-coin-1'><div class='coin-num'>1</div><div class='coin-unit'>圓</div></div><div class='money-count'>× {c1} 枚</div></div>")
+                                
+                                html_content = f"<div class='money-row'>{''.join(pieces)}</div>"
+                                st.markdown(html_content, unsafe_allow_html=True)
                             else:
                                 st.info("👌 剛好收齊，不需要找零！")
 
@@ -622,11 +598,11 @@ with tab2:
             for row_idx, row_data in current_orders.iterrows():
                 row_c1, row_c2, row_c3, row_c4 = st.columns([2, 3, 2, 2])
                 with row_c1:
-                    st.write(f"**{row_data['員工姓名']}** ({row_data.get('所屬部門', '-')})")
+                    st.write(f"**{row_data.get('員工姓名', '')}** ({row_data.get('所屬部門', '-')})")
                 with row_c2:
-                    st.write(f"{row_data['餐點品項']} ｜ {row_data['麵類選擇']} ｜ {row_data['是否加麵']}")
+                    st.write(f"{row_data.get('餐點品項', '')} ｜ {row_data.get('麵類選擇', '')} ｜ {row_data.get('是否加麵', '')}")
                 with row_c3:
-                    st.write(f"金額：<b style='color:#DC2626;'>{row_data['小計金額']}</b>", unsafe_allow_html=True)
+                    st.write(f"金額：<b style='color:#DC2626;'>{row_data.get('小計金額', '')}</b>", unsafe_allow_html=True)
                 with row_c4:
                     cur_status = row_data.get("付款狀態", "未付款")
                     if cur_status == "已付款":
