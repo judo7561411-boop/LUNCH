@@ -4,7 +4,7 @@ from datetime import date
 
 st.set_page_config(page_title="中餐點餐系統", page_icon="🍱", layout="wide")
 
-# CSS 注入
+# CSS 注入：高擬真台灣貨幣圖卡與大數字
 st.markdown("""
 <style>
     html, body, [class*="css"] {
@@ -60,17 +60,152 @@ st.markdown("""
         text-align: center;
         margin-top: 20px;
     }
-    .change-box {
-        background-color: #FEF3C7;
-        border: 2px solid #F59E0B;
-        border-radius: 14px;
-        padding: 16px;
+
+    /* 貨幣容器 */
+    .money-container {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        margin: 10px 14px;
+    }
+    .money-count {
         font-size: 24px;
+        font-weight: 900;
+        color: #1E293B;
+        margin-top: 6px;
+    }
+
+    /* 100元 紙鈔 */
+    .tw-bill-100 {
+        background: linear-gradient(135deg, #DC2626 0%, #991B1B 100%);
+        color: #FEF08A;
+        border: 3px solid #7F1D1D;
+        border-radius: 10px;
+        width: 170px;
+        height: 85px;
+        display: flex;
+        flex-direction: column;
+        justify-content: space-between;
+        padding: 6px 10px;
+        box-shadow: 3px 3px 8px rgba(0,0,0,0.3);
+        font-family: sans-serif;
+    }
+    .tw-bill-100 .top-row {
+        display: flex;
+        justify-content: space-between;
+        font-size: 14px;
         font-weight: bold;
-        color: #92400E;
+    }
+    .tw-bill-100 .center-val {
+        font-size: 34px;
+        font-weight: 900;
         text-align: center;
-        margin-top: 10px;
-        margin-bottom: 10px;
+        color: #FFFFFF;
+        text-shadow: 1px 1px 2px #000;
+        letter-spacing: 2px;
+    }
+    .tw-bill-100 .bot-row {
+        font-size: 12px;
+        text-align: right;
+        color: #FCA5A5;
+    }
+
+    /* 50元 硬幣 (金色) */
+    .tw-coin-50 {
+        background: radial-gradient(circle at 35% 35%, #FDE047 0%, #CA8A04 70%, #854D0E 100%);
+        color: #451A03;
+        border: 4px solid #A16207;
+        border-radius: 50%;
+        width: 82px;
+        height: 82px;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        box-shadow: inset 0 0 0 3px #FACC15, 3px 3px 6px rgba(0,0,0,0.35);
+        text-shadow: 0 1px 1px rgba(255,255,255,0.7);
+    }
+    .tw-coin-50 .coin-num {
+        font-size: 32px;
+        font-weight: 900;
+        line-height: 1;
+    }
+    .tw-coin-50 .coin-unit {
+        font-size: 13px;
+        font-weight: bold;
+    }
+
+    /* 10元 硬幣 (銀色中圓) */
+    .tw-coin-10 {
+        background: radial-gradient(circle at 35% 35%, #F8FAFC 0%, #94A3B8 70%, #475569 100%);
+        color: #0F172A;
+        border: 3px solid #64748B;
+        border-radius: 50%;
+        width: 72px;
+        height: 72px;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        box-shadow: inset 0 0 0 2px #E2E8F0, 3px 3px 5px rgba(0,0,0,0.3);
+    }
+    .tw-coin-10 .coin-num {
+        font-size: 28px;
+        font-weight: 900;
+        line-height: 1;
+    }
+    .tw-coin-10 .coin-unit {
+        font-size: 12px;
+        font-weight: bold;
+    }
+
+    /* 5元 硬幣 (銀色小圓) */
+    .tw-coin-5 {
+        background: radial-gradient(circle at 35% 35%, #F8FAFC 0%, #94A3B8 70%, #475569 100%);
+        color: #0F172A;
+        border: 3px solid #64748B;
+        border-radius: 50%;
+        width: 62px;
+        height: 62px;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        box-shadow: inset 0 0 0 2px #E2E8F0, 2px 2px 4px rgba(0,0,0,0.3);
+    }
+    .tw-coin-5 .coin-num {
+        font-size: 24px;
+        font-weight: 900;
+        line-height: 1;
+    }
+    .tw-coin-5 .coin-unit {
+        font-size: 11px;
+        font-weight: bold;
+    }
+
+    /* 1元 硬幣 (銅色小圓) */
+    .tw-coin-1 {
+        background: radial-gradient(circle at 35% 35%, #FDBA74 0%, #C2410C 70%, #7C2D12 100%);
+        color: #431407;
+        border: 3px solid #9A3412;
+        border-radius: 50%;
+        width: 54px;
+        height: 54px;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        box-shadow: inset 0 0 0 2px #FED7AA, 2px 2px 4px rgba(0,0,0,0.3);
+        text-shadow: 0 1px 0 rgba(255,255,255,0.4);
+    }
+    .tw-coin-1 .coin-num {
+        font-size: 22px;
+        font-weight: 900;
+        line-height: 1;
+    }
+    .tw-coin-1 .coin-unit {
+        font-size: 10px;
+        font-weight: bold;
     }
 </style>
 """, unsafe_allow_html=True)
@@ -297,7 +432,7 @@ with tab1:
                             st.rerun()
 
 # -------------------------------------------------------------
-# 分頁 2：明細與對帳（支援點選付款、找零計算機、明細維護）
+# 分頁 2：明細與對帳（擬真台灣貨幣圖卡找零）
 # -------------------------------------------------------------
 with tab2:
     st.subheader("📊 每日點餐明細與收款找零對帳")
@@ -319,7 +454,6 @@ with tab2:
     if df_orders.empty or "訂購日期" not in df_orders.columns:
         st.info("尚無任何訂單紀錄。")
     else:
-        # 篩選所選日期的訂單索引
         date_mask = df_orders["訂購日期"].astype(str) == str(query_date)
         current_orders = df_orders[date_mask].copy()
 
@@ -341,7 +475,6 @@ with tab2:
             unpaid_money = total_money - paid_money
             unpaid_count = total_items - len(paid_orders)
 
-            # 統計看板
             m1, m2, m3, m4 = st.columns(4)
             m1.metric("當日訂單總額", f"${total_money:,} 元")
             m2.metric("總訂單數", f"{total_items} 筆")
@@ -351,53 +484,132 @@ with tab2:
             st.write("---")
 
             # ---------------------------------------------------------
-            # 收款找零計算小工具
+            # 台灣實體貨幣找零輔助器
             # ---------------------------------------------------------
-            with st.expander("💵 現場收款找零計算機（點擊展開）", expanded=True):
+            with st.expander("💵 現場收款與【台灣鈔票/硬幣】找零輔助器（點擊展開）", expanded=True):
                 unpaid_list = current_orders[current_orders["付款狀態"] != "已付款"]
                 
                 if unpaid_list.empty:
-                    st.success("🎉 太棒了！今日所有訂單皆已全數收款完畢！")
+                    st.success("🎉 今日所有訂單皆已全數收款完畢！")
                 else:
                     user_options = unpaid_list["員工姓名"].unique().tolist()
                     calc_col1, calc_col2 = st.columns([1, 1])
                     
                     with calc_col1:
                         target_user = st.selectbox("選擇要繳費收款的同仁", options=user_options)
-                        # 計算該同仁今日所有未付款餐點總額
                         user_unpaid_items = unpaid_list[unpaid_list["員工姓名"] == target_user]
                         target_due = user_unpaid_items["金額數值"].sum()
-                        st.info(f"👉 **{target_user}** 應繳總金額：<b style='color:#DC2626; font-size:26px;'>${target_due}</b> 元")
+                        
+                        st.markdown(f"""
+                        <div style="background-color: #FEF2F2; border: 2px solid #F87171; border-radius: 12px; padding: 14px; margin-top: 10px;">
+                            👤 收款對象：<b>{target_user}</b><br>
+                            💰 應收金額：<b style="color: #DC2626; font-size: 32px;">${target_due}</b> 元
+                        </div>
+                        """, unsafe_allow_html=True)
 
                     with calc_col2:
-                        st.write("輸入或點選實收金額：")
-                        # 實收快捷按鈕
+                        st.write("點選同仁拿出的鈔票：")
                         q_col1, q_col2, q_col3 = st.columns(3)
                         with q_col1:
                             if st.button("剛好", key="pay_exact"):
                                 st.session_state.received_cash = target_due
                         with q_col2:
-                            if st.button("收 $100", key="pay_100"):
+                            if st.button("💵 拿 100", key="pay_100"):
                                 st.session_state.received_cash = 100
                         with q_col3:
-                            if st.button("收 $500", key="pay_500"):
+                            if st.button("💵 拿 500", key="pay_500"):
                                 st.session_state.received_cash = 500
 
                         default_val = st.session_state.get("received_cash", target_due)
-                        paid_input = st.number_input("實收金額 (元)", min_value=0, value=int(default_val), step=10)
+                        paid_input = st.number_input("或自訂實收金額 (元)", min_value=0, value=int(default_val), step=10)
 
-                        # 自動計算找零
                         change = paid_input - target_due
                         if change >= 0:
-                            st.markdown(f'<div class="change-box">🪙 應找零錢：<b style="color:#059669; font-size:32px;">${change}</b> 元</div>', unsafe_allow_html=True)
-                            if st.button(f"✅ 確認收款並完成找零（將 {target_user} 標記為已付款）", type="primary"):
-                                # 將該同仁今日訂單全部標為已付款
+                            st.markdown(f"""
+                            <div style="background-color: #ECFDF5; border: 2px solid #34D399; border-radius: 12px; padding: 14px; margin-top: 10px;">
+                                🪙 應找零錢總計：<b style="color: #059669; font-size: 34px;">${change}</b> 元
+                            </div>
+                            """, unsafe_allow_html=True)
+
+                            # 拆解貨幣面額 (100, 50, 10, 5, 1)
+                            rem_c = change
+                            c100 = rem_c // 100
+                            rem_c %= 100
+                            c50 = rem_c // 50
+                            rem_c %= 50
+                            c10 = rem_c // 10
+                            rem_c %= 10
+                            c5 = rem_c // 5
+                            c1 = rem_c % 5
+
+                            if change > 0:
+                                st.write("#### 👉 請拿給同仁這些鈔票與硬幣：")
+                                visual_html = "<div style='display: flex; flex-wrap: wrap; align-items: flex-start; margin-top: 10px;'>"
+                                
+                                if c100 > 0:
+                                    visual_html += f"""
+                                    <div class='money-container'>
+                                        <div class='tw-bill-100'>
+                                            <div class='top-row'><span>100</span><span>中央印製廠</span></div>
+                                            <div class='center-val'>100</div>
+                                            <div class='bot-row'>壹佰圓</div>
+                                        </div>
+                                        <div class='money-count'>× {c100} 張</div>
+                                    </div>
+                                    """
+                                if c50 > 0:
+                                    visual_html += f"""
+                                    <div class='money-container'>
+                                        <div class='tw-coin-50'>
+                                            <div class='coin-num'>50</div>
+                                            <div class='coin-unit'>圓</div>
+                                        </div>
+                                        <div class='money-count'>× {c50} 枚</div>
+                                    </div>
+                                    """
+                                if c10 > 0:
+                                    visual_html += f"""
+                                    <div class='money-container'>
+                                        <div class='tw-coin-10'>
+                                            <div class='coin-num'>10</div>
+                                            <div class='coin-unit'>圓</div>
+                                        </div>
+                                        <div class='money-count'>× {c10} 枚</div>
+                                    </div>
+                                    """
+                                if c5 > 0:
+                                    visual_html += f"""
+                                    <div class='money-container'>
+                                        <div class='tw-coin-5'>
+                                            <div class='coin-num'>5</div>
+                                            <div class='coin-unit'>圓</div>
+                                        </div>
+                                        <div class='money-count'>× {c5} 枚</div>
+                                    </div>
+                                    """
+                                if c1 > 0:
+                                    visual_html += f"""
+                                    <div class='money-container'>
+                                        <div class='tw-coin-1'>
+                                            <div class='coin-num'>1</div>
+                                            <div class='coin-unit'>圓</div>
+                                        </div>
+                                        <div class='money-count'>× {c1} 枚</div>
+                                    </div>
+                                    """
+                                visual_html += "</div>"
+                                st.markdown(visual_html, unsafe_allow_html=True)
+                            else:
+                                st.info("👌 剛好收齊，不需要找零！")
+
+                            st.write("")
+                            if st.button(f"✅ 確認收款完畢（將 {target_user} 設為已付款）", type="primary", use_container_width=True):
                                 target_indices = user_unpaid_items.index
                                 st.session_state.df_orders.loc[target_indices, "付款狀態"] = "已付款"
-                                st.success(f"已成功收取 {target_user} 款項，並標記為已付款！")
+                                st.success(f"已完成 {target_user} 收款！")
                                 st.rerun()
                         else:
-                            st.error(f"⚠️ 金額不足！還差 ${abs(change)} 元")
+                            st.error(f"⚠️ 還不夠喔！同仁還差 ${abs(change)} 元")
 
             st.write("---")
 
@@ -418,11 +630,11 @@ with tab2:
                 with row_c4:
                     cur_status = row_data.get("付款狀態", "未付款")
                     if cur_status == "已付款":
-                        if st.button("🟢 已付款 (點擊改未付)", key=f"status_btn_{row_idx}"):
+                        if st.button("🟢 已付款 (改未付)", key=f"status_btn_{row_idx}"):
                             st.session_state.df_orders.loc[row_idx, "付款狀態"] = "未付款"
                             st.rerun()
                     else:
-                        if st.button("🔴 未付款 (點擊確認收款)", key=f"status_btn_{row_idx}"):
+                        if st.button("🔴 未付款 (改已付)", key=f"status_btn_{row_idx}"):
                             st.session_state.df_orders.loc[row_idx, "付款狀態"] = "已付款"
                             st.rerun()
 
