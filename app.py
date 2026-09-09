@@ -2,144 +2,314 @@ import streamlit as st
 import pandas as pd
 from datetime import date
 
-st.set_page_config(page_title="中餐點餐與對帳系統", page_icon="🍱", layout="wide")
+# 頁面配置
+st.set_page_config(page_title="中餐點餐與管理系統", page_icon="🍱", layout="wide")
+
+# CSS 注入：點餐介面友善大字體與大按鈕
+st.markdown("""
+<style>
+    /* 點餐介面字體放大 */
+    .friendly-container {
+        font-size: 22px !important;
+    }
+    /* 大圖卡按鈕樣式 */
+    .big-btn button {
+        width: 100% !important;
+        min-height: 85px !important;
+        font-size: 24px !important;
+        font-weight: bold !important;
+        border-radius: 16px !important;
+        margin-bottom: 12px !important;
+        border: 2px solid #D1D5DB !important;
+    }
+    .big-btn button:hover {
+        border-color: #3B82F6 !important;
+        background-color: #EFF6FF !important;
+    }
+    /* 成功確認大方框 */
+    .big-success-box {
+        background-color: #DEF7EC;
+        border: 3px solid #31C48D;
+        border-radius: 16px;
+        padding: 24px;
+        font-size: 30px;
+        font-weight: bold;
+        color: #03543F;
+        text-align: center;
+        margin-top: 20px;
+    }
+</style>
+""", unsafe_allow_html=True)
 
 SHEET_ID = "1mHnXoG-Duq45EvwZTRVuq86rsK8T5DA9NkLnOi30wuM"
 
-# 透過 Google Sheets 官方 CSV 匯出介面讀取（不需要複雜金鑰，永不報 400）
 @st.cache_data(ttl=0)
 def load_sheet(sheet_name, header_row=0):
     try:
         url = f"https://docs.google.com/spreadsheets/d/{SHEET_ID}/gviz/tq?tqx=out:csv&sheet={sheet_name}"
-        df = pd.read_csv(url, header=header_row)
-        return df
-    except Exception as e:
-        st.error(f"讀取 {sheet_name} 失敗: {e}")
+        return pd.read_csv(url, header=header_row)
+    except Exception:
         return pd.DataFrame()
 
-# 載入三個分頁資料
-df_menu = load_sheet("menu")
-df_users = load_sheet("users")
-df_orders = load_sheet("orders", header_row=3)  # orders 前三列為統計資訊，第 4 列為標題
+# 載入資料並在 Session State 中保持可編輯性
+if "df_menu" not in st.session_state:
+    loaded_menu = load_sheet("menu")
+    if not loaded_menu.empty and "餐點名稱" in loaded_menu.columns:
+        st.session_state.df_menu = loaded_menu.dropna(subset=["餐點名稱"])
+    else:
+        st.session_state.df_menu = pd.DataFrame(columns=["店家名稱", "分類", "餐點名稱", "麵類選擇", "單價", "供應狀態", "備註"])
 
-if not df_menu.empty and "餐點名稱" in df_menu.columns:
-    df_menu = df_menu.dropna(subset=["餐點名稱"])
+if "df_users" not in st.session_state:
+    loaded_users = load_sheet("users")
+    if not loaded_users.empty and "姓名" in loaded_users.columns:
+        st.session_state.df_users = loaded_users.dropna(subset=["姓名"])
+    else:
+        st.session_state.df_users = pd.DataFrame(columns=["姓名", "組別"])
 
-if not df_users.empty and "姓名" in df_users.columns:
-    df_users = df_users.dropna(subset=["姓名"])
+# 初始化友善點餐狀態
+if "step" not in st.session_state:
+    st.session_state.step = 1
+if "order_name" not in st.session_state:
+    st.session_state.order_name = None
+if "order_item" not in st.session_state:
+    st.session_state.order_item = None
+if "order_item_price" not in st.session_state:
+    st.session_state.order_item_price = 0
+if "order_noodle" not in st.session_state:
+    st.session_state.order_noodle = "意麵"
+if "order_extra" not in st.session_state:
+    st.session_state.order_extra = "不加麵"
 
-if not df_orders.empty and "訂單編號" in df_orders.columns:
-    df_orders = df_orders.dropna(subset=["訂單編號"])
-    df_orders = df_orders[df_orders["訂單編號"] != "總計"]
-
-st.title("🍱 中餐點餐與對帳系統")
+st.title("🍱 中餐點餐與管理系統")
 
 tab1, tab2, tab3, tab4 = st.tabs([
-    "🛒 我要點餐(含預訂)", 
-    "📊 中餐明細與收款確認", 
-    "⚙️ 店家與菜單維護", 
+    "🛒 友善大圖點餐", 
+    "📊 明細與對帳", 
+    "⚙️ 菜單管理與編輯", 
     "👥 人員名單管理"
 ])
 
 # -------------------------------------------------------------
-# 分頁 1：我要點餐
+# 分頁 1：符合智能障礙者操作之點餐流程（四步驟引導）
 # -------------------------------------------------------------
 with tab1:
-    st.subheader("中餐登記")
-    if df_menu.empty or df_users.empty:
-        st.warning("⚠️ 讀取中或試算表尚未對外公開，請確保 Google 試算表共用權限設為【知道連結的任何人】。")
-    else:
-        available_menu = df_menu[df_menu["供應狀態"] == "供應中"] if "供應狀態" in df_menu.columns else df_menu
-        stores = available_menu["店家名稱"].dropna().unique() if "店家名稱" in available_menu.columns else []
-        users = df_users["姓名"].dropna().unique() if "姓名" in df_users.columns else []
+    st.markdown(f"## 👉 目前步驟：第 {st.session_state.step} 步 / 共 4 步")
+
+    # 步驟 1：選姓名
+    if st.session_state.step == 1:
+        st.subheader("請問你是誰？（點選你的名字）")
+        user_list = st.session_state.df_users["姓名"].dropna().tolist()
         
-        col1, col2 = st.columns(2)
-        with col1:
-            order_date = st.date_input("點餐日期", value=date.today())
-            selected_user = st.selectbox("點餐人員", options=users)
-            selected_store = st.selectbox("選擇店家", options=stores)
+        if not user_list:
+            st.warning("目前尚無人員資料，請至【👥 人員名單管理】新增。")
+        else:
+            cols = st.columns(2)
+            for idx, name in enumerate(user_list):
+                with cols[idx % 2]:
+                    st.markdown('<div class="big-btn">', unsafe_allow_html=True)
+                    if st.button(f"👤 {name}", key=f"user_{name}"):
+                        st.session_state.order_name = name
+                        st.session_state.step = 2
+                        st.rerun()
+                    st.markdown('</div>', unsafe_allow_html=True)
+
+    # 步驟 2：選餐點
+    elif st.session_state.step == 2:
+        st.subheader(f"你好，{st.session_state.order_name}！今天想吃什麼？")
         
-        store_items = available_menu[available_menu["店家名稱"] == selected_store]
+        # 只顯示供應中的菜單
+        menu_df = st.session_state.df_menu
+        available_menu = menu_df[menu_df["供應狀態"] == "供應中"] if "供應狀態" in menu_df.columns else menu_df
         
-        with col2:
-            item_options = store_items["餐點名稱"].tolist()
-            selected_item_name = st.selectbox("選擇餐點", options=item_options)
+        if available_menu.empty:
+            st.warning("目前沒有供應中的餐點。")
+        else:
+            cols = st.columns(2)
+            for idx, (_, row) in enumerate(available_menu.iterrows()):
+                item_name = row["餐點名稱"]
+                raw_p = row.get("單價", 0)
+                price = int(str(raw_p).replace("$", "").replace(",", "").strip()) if pd.notnull(raw_p) else 0
+                
+                with cols[idx % 2]:
+                    st.markdown('<div class="big-btn">', unsafe_allow_html=True)
+                    if st.button(f"🍲 {item_name}\n${price} 元", key=f"item_{item_name}"):
+                        st.session_state.order_item = item_name
+                        st.session_state.order_item_price = price
+                        st.session_state.step = 3
+                        st.rerun()
+                    st.markdown('</div>', unsafe_allow_html=True)
+                    
+        st.write("")
+        if st.button("⬅️ 重選名字"):
+            st.session_state.step = 1
+            st.rerun()
+
+    # 步驟 3：選麵類與份量
+    elif st.session_state.step == 3:
+        st.subheader(f"已選餐點：{st.session_state.order_item}")
+        
+        st.write("#### 1. 想要哪種麵？")
+        noodles = ["意麵", "冬粉", "泡飯", "雞絲麵", "王子麵", "烏龍麵 (+10元)"]
+        n_cols = st.columns(3)
+        for idx, nd in enumerate(noodles):
+            with n_cols[idx % 3]:
+                st.markdown('<div class="big-btn">', unsafe_allow_html=True)
+                if st.button(f"🍜 {nd}", key=f"nd_{nd}"):
+                    st.session_state.order_noodle = nd
+                st.markdown('</div>', unsafe_allow_html=True)
+        
+        st.info(f"👉 目前選的麵：**{st.session_state.order_noodle}**")
+        st.write("---")
+        
+        st.write("#### 2. 吃得飽嗎？需要加麵嗎？")
+        e_col1, e_col2 = st.columns(2)
+        with e_col1:
+            st.markdown('<div class="big-btn">', unsafe_allow_html=True)
+            if st.button("🥣 正常份量 (不加麵)", key="no_extra"):
+                st.session_state.order_extra = "不加麵"
+            st.markdown('</div>', unsafe_allow_html=True)
+        with e_col2:
+            st.markdown('<div class="big-btn">', unsafe_allow_html=True)
+            if st.button("➕ 加大份量 (+15元)", key="yes_extra"):
+                st.session_state.order_extra = "加麵 (+15元)"
+            st.markdown('</div>', unsafe_allow_html=True)
             
-            item_info = store_items[store_items["餐點名稱"] == selected_item_name].iloc[0]
-            raw_price = item_info.get("單價", 0)
-            base_price = int(str(raw_price).replace("$", "").replace(",", "").strip()) if pd.notnull(raw_price) else 0
-            
-            noodle_options_str = str(item_info.get("麵類選擇", "-"))
-            noodle_list = [n.strip() for n in noodle_options_str.split("/")] if "/" in noodle_options_str else [noodle_options_str]
-            selected_noodle = st.selectbox("麵類選擇", options=noodle_list)
-            
-            is_extra_noodle = st.radio("是否加麵", options=["不加麵", "加麵 (+15元)"], horizontal=True)
-            quantity = st.number_input("數量", min_value=1, value=1, step=1)
-            
-        extra_fee = 10 if "烏龍麵" in selected_noodle else 0
-        noodle_fee = 15 if "加麵" in is_extra_noodle else 0
-        single_price = base_price + extra_fee
-        total_item_price = (single_price + noodle_fee) * quantity
+        st.info(f"👉 目前選的份量：**{st.session_state.order_extra}**")
+        st.write("---")
         
-        st.info(f"💰 單價小計：${single_price} | 加麵與數量合計：**${total_item_price}**")
-        
-        if st.button("送出訂單", type="primary"):
-            st.info("💡 訂單登記完成！如需直接寫入雲端表單，請記得將登記內容登記到 Google 試算表中。")
+        b1, b2 = st.columns(2)
+        with b1:
+            if st.button("⬅️ 重選餐點"):
+                st.session_state.step = 2
+                st.rerun()
+        with b2:
+            if st.button("👉 點好了，看確認畫面！", type="primary"):
+                st.session_state.step = 4
+                st.rerun()
+
+    # 步驟 4：大字核對與送出
+    elif st.session_state.step == 4:
+        st.subheader("請看清楚，這是你的餐點嗎？")
+        extra_nd_fee = 10 if "烏龍麵" in st.session_state.order_noodle else 0
+        extra_fee = 15 if "加麵" in st.session_state.order_extra else 0
+        total_p = st.session_state.order_item_price + extra_nd_fee + extra_fee
+
+        st.markdown(f"""
+        <div style="background-color: #F8FAFC; border: 2px solid #CBD5E1; border-radius: 16px; padding: 24px; font-size: 26px; line-height: 2.2;">
+            👤 姓名：<b>{st.session_state.order_name}</b><br>
+            🍲 餐點：<b>{st.session_state.order_item}</b><br>
+            🍜 麵類：<b>{st.session_state.order_noodle}</b><br>
+            🥣 份量：<b>{st.session_state.order_extra}</b><br>
+            💵 金額：<b style="color: #E02424; font-size: 36px;">${total_p} 元</b>
+        </div>
+        """, unsafe_allow_html=True)
+        st.write("")
+
+        c1, c2 = st.columns(2)
+        with c1:
+            if st.button("❌ 不對，全部重新選"):
+                st.session_state.step = 1
+                st.session_state.order_name = None
+                st.session_state.order_item = None
+                st.rerun()
+        with c2:
+            if st.button("✅ 正確，按這裡送出！", type="primary"):
+                st.markdown("""
+                <div class="big-success-box">
+                    🎉 點餐成功！廚房收到囉！
+                </div>
+                """, unsafe_allow_html=True)
+                st.write("")
+                if st.button("幫下一位同仁點餐"):
+                    st.session_state.step = 1
+                    st.session_state.order_name = None
+                    st.session_state.order_item = None
+                    st.rerun()
 
 # -------------------------------------------------------------
-# 分頁 2：中餐明細與收款確認
+# 分頁 2：明細與收款確認
 # -------------------------------------------------------------
 with tab2:
-    st.subheader("明細與收款確認")
-    col_d1, col_d2 = st.columns([3, 1])
-    with col_d1:
-        query_date = st.date_input("選擇欲對帳之日期", value=date.today(), key="admin_date")
-    with col_d2:
-        st.write("")
-        st.write("")
-        if st.button("🔄 即時同步最新狀態"):
-            st.cache_data.clear()
-            st.rerun()
-            
-    if not df_orders.empty and "訂購日期" in df_orders.columns:
-        filtered_orders = df_orders[df_orders["訂購日期"].astype(str) == str(query_date)]
-        if filtered_orders.empty:
-            st.info(f"【{query_date}】查無任何中餐點單紀錄。")
-        else:
-            st.dataframe(filtered_orders, use_container_width=True)
-            
-            try:
-                amounts = filtered_orders["小計金額"].astype(str).str.replace("$", "").str.replace(",", "").astype(int)
-                total_sum = amounts.sum()
-            except:
-                total_sum = 0
-                
-            total_count = len(filtered_orders)
-            paid_count = len(filtered_orders[filtered_orders["付款狀態"] == "已付款"])
-            
-            c1, c2, c3 = st.columns(3)
-            c1.metric("今日訂單總金額", f"${total_sum:,}")
-            c2.metric("訂單總件數", f"{total_count} 筆")
-            c3.metric("已收款 / 未收款", f"{paid_count} / {total_count - paid_count}")
+    st.subheader("每日點餐明細與對帳")
+    df_orders = load_sheet("orders", header_row=3)
+    if not df_orders.empty and "訂單編號" in df_orders.columns:
+        df_orders = df_orders.dropna(subset=["訂單編號"])
+        df_orders = df_orders[df_orders["訂單編號"] != "總計"]
+        st.dataframe(df_orders, use_container_width=True)
     else:
-        st.info("目前尚無訂單紀錄。")
+        st.info("尚無今日點單資料。")
 
 # -------------------------------------------------------------
-# 分頁 3：店家菜單檢視
+# 分頁 3：菜單管理與編輯（管理者專用）
 # -------------------------------------------------------------
 with tab3:
-    st.subheader("店家與菜單列表")
-    if not df_menu.empty:
-        st.dataframe(df_menu, use_container_width=True)
-    else:
-        st.warning("查無店家菜單資料。")
+    st.subheader("⚙️ 菜單管理與品項維護")
+    
+    with st.expander("➕ 新增菜單餐點品項", expanded=False):
+        with st.form("add_menu_form"):
+            new_store = st.text_input("店家名稱", value="劉妹鍋燒意麵 (鹿港萬壽店)")
+            new_category = st.text_input("分類", value="鍋燒系列")
+            new_item_name = st.text_input("餐點名稱")
+            new_noodles = st.text_input("麵類選擇", value="意麵 / 冬粉 / 泡飯 / 雞絲麵 / 王子麵 / 烏龍麵 (+10元)")
+            new_price = st.number_input("單價", min_value=0, value=80, step=5)
+            new_status = st.selectbox("供應狀態", options=["供應中", "已售完"])
+            new_note = st.text_input("備註")
+            
+            if st.form_submit_button("確認新增品項"):
+                if new_item_name:
+                    new_entry = pd.DataFrame([{
+                        "店家名稱": new_store,
+                        "分類": new_category,
+                        "餐點名稱": new_item_name,
+                        "麵類選擇": new_noodles,
+                        "單價": f"${new_price}",
+                        "供應狀態": new_status,
+                        "備註": new_note
+                    }])
+                    st.session_state.df_menu = pd.concat([st.session_state.df_menu, new_entry], ignore_index=True)
+                    st.success(f"已新增品項：{new_item_name}！")
+                    st.rerun()
+
+    st.write("#### 菜單清單（可直接修改價格與供應狀態）：")
+    # 支援線上表格直接編輯
+    edited_menu = st.data_editor(
+        st.session_state.df_menu, 
+        use_container_width=True, 
+        num_rows="dynamic",
+        key="menu_editor"
+    )
+    if st.button("💾 儲存菜單修改內容"):
+        st.session_state.df_menu = edited_menu
+        st.success("菜單修改已更新至系統！")
 
 # -------------------------------------------------------------
-# 分頁 4：人員名單檢視
+# 分頁 4：人員名單管理（管理者專用）
 # -------------------------------------------------------------
 with tab4:
-    st.subheader("人員名單列表")
-    if not df_users.empty:
-        st.dataframe(df_users, use_container_width=True)
-    else:
-        st.warning("查無人員資料。")
+    st.subheader("👥 人員名單維護")
+    
+    with st.expander("➕ 新增同仁名單", expanded=False):
+        with st.form("add_user_form"):
+            new_user_name = st.text_input("姓名")
+            new_user_dept = st.text_input("組別 / 部門")
+            
+            if st.form_submit_button("新增同仁"):
+                if new_user_name:
+                    new_person = pd.DataFrame([{
+                        "姓名": new_user_name,
+                        "組別": new_user_dept
+                    }])
+                    st.session_state.df_users = pd.concat([st.session_state.df_users, new_person], ignore_index=True)
+                    st.success(f"同仁【{new_user_name}】新增成功！")
+                    st.rerun()
+
+    st.write("#### 目前同仁名單（可直接修改或刪除）：")
+    edited_users = st.data_editor(
+        st.session_state.df_users, 
+        use_container_width=True, 
+        num_rows="dynamic",
+        key="users_editor"
+    )
+    if st.button("💾 儲存人員名單修改"):
+        st.session_state.df_users = edited_users
+        st.success("人員名單已更新至系統！")
