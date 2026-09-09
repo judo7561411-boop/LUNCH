@@ -21,6 +21,17 @@ st.markdown("""
         border: 2px solid #CBD5E1 !important;
     }
     .user-btn button:hover { border-color: #2563EB !important; background-color: #EFF6FF !important; }
+    .store-btn button {
+        width: 100% !important; min-height: 90px !important;
+        font-size: 26px !important; font-weight: 900 !important;
+        border-radius: 16px !important; margin-bottom: 14px !important;
+        background-color: #FEF3C7 !important; color: #92400E !important;
+        border: 2px solid #F59E0B !important;
+        box-shadow: 0 3px 6px rgba(0,0,0,0.06) !important;
+    }
+    .store-btn button:hover {
+        background-color: #FDE68A !important; border-color: #D97706 !important;
+    }
     .food-card {
         background-color: #FFFFFF; border: 2px solid #E2E8F0;
         border-radius: 16px; padding: 16px; margin-bottom: 16px;
@@ -156,6 +167,8 @@ if "orders_data" not in st.session_state:
     st.session_state.orders_data = load_orders_from_sheet()
 if "selected_user" not in st.session_state:
     st.session_state.selected_user = None
+if "selected_store" not in st.session_state:
+    st.session_state.selected_store = None
 if "user_limit" not in st.session_state:
     st.session_state.user_limit = 0
 if "cart" not in st.session_state:
@@ -180,11 +193,12 @@ tab1, tab2, tab3, tab4 = st.tabs([
 ])
 
 # -------------------------------------------------------------
-# 分頁 1：友善大圖點餐
+# 分頁 1：友善大圖點餐（加入第二步：店家選擇）
 # -------------------------------------------------------------
 with tab1:
     today_str = str(date.today())
     
+    # 點餐完成畫面
     if st.session_state.order_finished:
         pay_amount = st.session_state.last_paid_amount
         st.markdown(f"""
@@ -197,6 +211,7 @@ with tab1:
         st.markdown('<div class="big-next-btn">', unsafe_allow_html=True)
         if st.button("👉 換下一位點餐", key="btn_next_user"):
             st.session_state.selected_user = None
+            st.session_state.selected_store = None
             st.session_state.user_limit = 0
             st.session_state.cart = []
             st.session_state.last_paid_amount = 0
@@ -204,6 +219,7 @@ with tab1:
             st.rerun()
         st.markdown('</div>', unsafe_allow_html=True)
 
+    # 第一步：選擇姓名
     elif st.session_state.selected_user is None:
         st.subheader("👉 第一步：請問你是誰？（點你的名字）")
         if df_users.empty or "姓名" not in df_users.columns:
@@ -220,13 +236,80 @@ with tab1:
                     st.markdown('<div class="user-btn">', unsafe_allow_html=True)
                     if st.button(f"👤 {u_name} {lim_badge}", key=f"sel_u_{u_name}_{idx}"):
                         st.session_state.selected_user = u_name
+                        st.session_state.selected_store = None
                         st.session_state.user_limit = lim_val
                         st.session_state.cart = []
                         st.rerun()
                     st.markdown('</div>', unsafe_allow_html=True)
 
+    # 第二步：選擇店家（點選同仁後出現）
+    elif st.session_state.selected_store is None:
+        u_name = st.session_state.selected_user
+        u_limit = st.session_state.user_limit
+
+        # 檢查該同仁今天是否已經點滿
+        df_all = st.session_state.orders_data
+        already_spent_today = 0
+        if not df_all.empty and "員工姓名" in df_all.columns and "訂購日期" in df_all.columns:
+            d_s = df_all["訂購日期"].astype(str).str.replace("-", "/")
+            today_slash = today_str.replace("-", "/")
+            user_today_orders = df_all[(df_all["員工姓名"] == u_name) & (d_s == today_slash)]
+            already_spent_today = user_today_orders["小計金額"].apply(parse_price).sum()
+
+        if u_limit > 0 and already_spent_today >= u_limit:
+            st.markdown(f"""
+            <div class="over-limit-box">
+                ⚠️ 【{u_name}】您今日已達到金額上限！<br>
+                本日限定額度：${u_limit} 元 ｜ 今日已點金額：<b>${already_spent_today}</b> 元<br>
+                <span style="font-size: 22px; color: #4B5563;">（今日不可再加點其他餐點）</span>
+            </div>
+            """, unsafe_allow_html=True)
+
+            st.markdown('<div class="big-next-btn">', unsafe_allow_html=True)
+            if st.button("👉 換下一位點餐", key="btn_next_overlimit_store"):
+                st.session_state.selected_user = None
+                st.session_state.selected_store = None
+                st.session_state.user_limit = 0
+                st.session_state.cart = []
+                st.rerun()
+            st.markdown('</div>', unsafe_allow_html=True)
+
+        else:
+            limit_txt = f"今日限額：<b>${u_limit}</b> 元 ｜ 今日已累計：<b>${already_spent_today}</b> 元 ｜ 剩餘額度：<b style='color:#DC2626;'>${u_limit - already_spent_today}</b> 元" if u_limit > 0 else "今日限額：<b>無限制</b>"
+            st.markdown(f'<div class="budget-banner">👤 目前同仁：{u_name} ｜ {limit_txt}</div>', unsafe_allow_html=True)
+
+            c_head1, c_head2 = st.columns([3, 1])
+            with c_head1:
+                st.subheader("👉 第二步：今天想吃哪一家？（點選店家）")
+            with c_head2:
+                if st.button("⬅️ 重選同仁"):
+                    st.session_state.selected_user = None
+                    st.session_state.selected_store = None
+                    st.session_state.cart = []
+                    st.rerun()
+
+            # 抓出菜單中所有不重複的店家名稱
+            if "店家名稱" in df_menu.columns:
+                store_list = df_menu["店家名稱"].dropna().unique().tolist()
+            else:
+                store_list = ["劉妹鍋燒意麵 (鹿港萬壽店)"]
+
+            if not store_list:
+                store_list = ["主要合作店家"]
+
+            cols_store = st.columns(2)
+            for s_idx, store_name in enumerate(store_list):
+                with cols_store[s_idx % 2]:
+                    st.markdown('<div class="store-btn">', unsafe_allow_html=True)
+                    if st.button(f"🏪 {store_name}", key=f"sel_store_{s_idx}"):
+                        st.session_state.selected_store = store_name
+                        st.rerun()
+                    st.markdown('</div>', unsafe_allow_html=True)
+
+    # 第三步：挑選該店家的餐點品項
     else:
         u_name = st.session_state.selected_user
+        current_store = st.session_state.selected_store
         u_limit = st.session_state.user_limit
 
         df_all = st.session_state.orders_data
@@ -241,45 +324,25 @@ with tab1:
 
         if u_limit > 0:
             remaining_daily_budget = u_limit - already_spent_today - cart_sum
-            is_already_fully_spent = (already_spent_today >= u_limit)
         else:
             remaining_daily_budget = 999999
-            is_already_fully_spent = False
 
-        if is_already_fully_spent and len(st.session_state.cart) == 0:
-            st.markdown(f"""
-            <div class="over-limit-box">
-                ⚠️ 【{u_name}】您今日已達到金額上限！<br>
-                本日限定額度：${u_limit} 元 ｜ 今日已點金額：<b>${already_spent_today}</b> 元<br>
-                <span style="font-size: 22px; color: #4B5563;">（今日不可再加點其他餐點）</span>
-            </div>
-            """, unsafe_allow_html=True)
-
-            st.markdown('<div class="big-next-btn">', unsafe_allow_html=True)
-            if st.button("👉 換下一位點餐", key="btn_next_overlimit"):
-                st.session_state.selected_user = None
-                st.session_state.user_limit = 0
-                st.session_state.cart = []
-                st.rerun()
-            st.markdown('</div>', unsafe_allow_html=True)
-
+        if u_limit > 0:
+            limit_info = f"今日限額：<b>${u_limit}</b> 元 ｜ 今日已點：<b>${already_spent_today}</b> 元 ｜ 本次還可點：<b style='color:#DC2626;'>${remaining_daily_budget}</b> 元"
         else:
-            if u_limit > 0:
-                limit_info = f"今日限額：<b>${u_limit}</b> 元 ｜ 今日已累計：<b>${already_spent_today}</b> 元 ｜ 本次還可點：<b style='color:#DC2626;'>${remaining_daily_budget}</b> 元"
-            else:
-                limit_info = "今日限額：<b>無限制</b>"
+            limit_info = "今日限額：<b>無限制</b>"
 
-            st.markdown(f'<div class="budget-banner">👤 目前同仁：{u_name} ｜ {limit_info}</div>', unsafe_allow_html=True)
+        st.markdown(f'<div class="budget-banner">👤 同仁：{u_name} ｜ 🏪 店家：{current_store} ｜ {limit_info}</div>', unsafe_allow_html=True)
 
-            with st.container():
-                col_t1, col_t2 = st.columns([3, 1])
-                with col_t1:
-                    st.markdown(f"### 🛒 本次點餐清單（共 {len(st.session_state.cart)} 樣，本次合計 **${cart_sum}** 元）")
-                with col_t2:
-                    if st.button("⬅️ 重選同仁 (清空)"):
-                        st.session_state.selected_user = None
-                        st.session_state.cart = []
-                        st.rerun()
+        with st.container():
+            col_t1, col_t2 = st.columns([3, 1])
+            with col_t1:
+                st.markdown(f"### 🛒 本次點餐清單（共 {len(st.session_state.cart)} 樣，本次合計 **${cart_sum}** 元）")
+            with col_t2:
+                if st.button("⬅️ 重選店家"):
+                    st.session_state.selected_store = None
+                    st.session_state.cart = []
+                    st.rerun()
 
             if st.session_state.cart:
                 for c_idx, c_item in enumerate(st.session_state.cart):
@@ -335,9 +398,15 @@ with tab1:
                     st.rerun()
 
         st.write("---")
-        st.subheader("👇 請挑選餐點：")
+        st.subheader(f"👇 第三步：請挑選【{current_store}】的餐點：")
 
-        available_menu = df_menu[df_menu["供應狀態"] == "供應中"] if "供應狀態" in df_menu.columns else df_menu
+        # 篩選供應中且屬於該店家的品項
+        available_menu = df_menu.copy()
+        if "供應狀態" in available_menu.columns:
+            available_menu = available_menu[available_menu["供應狀態"] == "供應中"]
+        if "店家名稱" in available_menu.columns and current_store:
+            available_menu = available_menu[available_menu["店家名稱"] == current_store]
+
         displayed_items = []
         for _, row in available_menu.iterrows():
             base_p = parse_price(row.get("單價", 0))
@@ -346,7 +415,7 @@ with tab1:
             displayed_items.append((row, base_p))
 
         if not displayed_items:
-            st.warning("⚠️ 剩餘額度不足以再點其他餐點囉！若已挑選完畢，請點擊上方【✅ 我選好了，送出全部餐點！】。")
+            st.warning("⚠️ 此店家沒有符合您剩餘預算的餐點，或品項已達金額上限！")
         else:
             cols = st.columns(2)
             for idx, (m_row, base_p) in enumerate(displayed_items):
@@ -384,7 +453,7 @@ with tab1:
                             st.rerun()
 
 # -------------------------------------------------------------
-# 分頁 2：明細與對帳（支援直接修改、編輯品項、刪除訂單）
+# 分頁 2：明細與對帳
 # -------------------------------------------------------------
 with tab2:
     st.subheader("📊 每日點餐明細與收款找零對帳")
@@ -527,9 +596,7 @@ with tab2:
 
             st.write("---")
             
-            # -------------------------------------------------------------
-            # 單筆訂單修改彈窗表單
-            # -------------------------------------------------------------
+            # 單筆編輯表單
             if st.session_state.edit_order_id is not None:
                 e_id = st.session_state.edit_order_id
                 matched_rows = st.session_state.orders_data[st.session_state.orders_data["訂單編號"] == e_id]
@@ -575,9 +642,7 @@ with tab2:
                                 st.session_state.edit_order_id = None
                                 st.rerun()
 
-            # -------------------------------------------------------------
-            # 明細卡片列表（附帶 編輯 / 付款切換 / 刪除 按鈕）
-            # -------------------------------------------------------------
+            # 點單明細卡片列表
             st.markdown("#### 📋 點單明細清單（可直接修改與切換狀態）：")
             for row_idx, row_data in current_orders.iterrows():
                 ord_id = row_data.get("訂單編號", "")
