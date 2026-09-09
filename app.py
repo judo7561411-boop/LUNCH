@@ -128,6 +128,11 @@ IMG_URLS = {
 
 SHEET_ID = "1mHnXoG-Duq45EvwZTRVuq86rsK8T5DA9NkLnOi30wuM"
 
+REQUIRED_ORDER_COLS = [
+    "訂單編號", "訂購日期", "員工編號", "員工姓名", "所屬部門", 
+    "餐點品項", "麵類選擇", "是否加麵", "單價", "數量", "小計金額", "付款狀態"
+]
+
 def load_menu():
     try:
         url = f"https://docs.google.com/spreadsheets/d/{SHEET_ID}/gviz/tq?tqx=out:csv&sheet=menu"
@@ -151,17 +156,35 @@ def load_orders():
         h_idx = 3
         for i in range(min(10, len(raw_df))):
             row_vals = [str(x).strip() for x in raw_df.iloc[i].tolist()]
-            if "訂單編號" in row_vals or "員工姓名" in row_vals:
+            if any("訂單編號" in v or "員工姓名" in v for v in row_vals):
                 h_idx = i
                 break
         df = pd.read_csv(url, header=h_idx)
         df.columns = [str(c).strip() for c in df.columns]
+
+        # 欄位模糊對應修復
+        for col in df.columns:
+            if "日期" in col and "訂購日期" not in df.columns:
+                df.rename(columns={col: "訂購日期"}, inplace=True)
+            elif "姓名" in col and "員工姓名" not in df.columns:
+                df.rename(columns={col: "員工姓名"}, inplace=True)
+            elif "小計" in col and "小計金額" not in df.columns:
+                df.rename(columns={col: "小計金額"}, inplace=True)
+            elif "狀態" in col and "付款狀態" not in df.columns:
+                df.rename(columns={col: "付款狀態"}, inplace=True)
+
+        # 補齊可能缺失的標準欄位
+        for req in REQUIRED_ORDER_COLS:
+            if req not in df.columns:
+                df[req] = ""
+
         if "員工姓名" in df.columns:
             df = df.dropna(subset=["員工姓名"])
             df = df[~df["員工姓名"].astype(str).str.contains("總計|合計", na=False)]
+            df = df[df["員工姓名"].astype(str).str.strip() != ""]
         return df
     except:
-        return pd.DataFrame()
+        return pd.DataFrame(columns=REQUIRED_ORDER_COLS)
 
 if "df_menu" not in st.session_state:
     st.session_state.df_menu = load_menu()
@@ -350,7 +373,7 @@ with tab1:
                             st.rerun()
 
 # -------------------------------------------------------------
-# 分頁 2：明細與對帳（實體貨幣看幾顆拿幾顆）
+# 分頁 2：明細與對帳
 # -------------------------------------------------------------
 with tab2:
     st.subheader("📊 每日點餐明細與收款找零對帳")
@@ -368,11 +391,17 @@ with tab2:
             st.session_state.df_users = load_users()
             st.rerun()
 
-    df_orders = st.session_state.df_orders
+    df_orders = st.session_state.df_orders.copy()
 
-    if df_orders.empty or "員工姓名" not in df_orders.columns:
+    # 確保必要欄位存在
+    for req in REQUIRED_ORDER_COLS:
+        if req not in df_orders.columns:
+            df_orders[req] = ""
+
+    if df_orders.empty:
         st.info("尚無任何訂單紀錄。請先在【🛒 友善大圖點餐】送出餐點。")
     else:
+        # 日期篩選防呆
         if show_all:
             current_orders = df_orders.copy()
             date_mask = pd.Series([True] * len(df_orders), index=df_orders.index)
@@ -383,7 +412,7 @@ with tab2:
             current_orders = df_orders[date_mask].copy()
 
         if current_orders.empty:
-            st.info(f"【{query_date}】尚無點單紀錄。（若要檢視之前輸入的舊資料，請勾選右上角「檢視所有歷史訂單」）")
+            st.info(f"【{query_date}】尚無點單紀錄。（若要檢視之前的舊資料，請勾選上方「檢視所有歷史訂單」）")
         else:
             def parse_money(v):
                 try:
@@ -408,16 +437,14 @@ with tab2:
 
             st.write("---")
 
-            # ---------------------------------------------------------
             # 台灣實體貨幣找零輔助器（看幾個拿幾個）
-            # ---------------------------------------------------------
             with st.expander("💵 現場收款與【新臺幣實際鈔票/硬幣】找零輔助器", expanded=True):
                 unpaid_list = current_orders[current_orders["付款狀態"] != "已付款"]
                 
                 if unpaid_list.empty:
                     st.success("🎉 此檢視範圍內的所有訂單皆已全數收款完畢！")
                 else:
-                    user_options = unpaid_list["員工姓名"].unique().tolist()
+                    user_options = unpaid_list["員工姓名"].dropna().unique().tolist()
                     calc_col1, calc_col2 = st.columns([1, 1])
                     
                     with calc_col1:
@@ -456,7 +483,6 @@ with tab2:
                             </div>
                             """, unsafe_allow_html=True)
 
-                            # 拆解面額
                             rem_c = change
                             c100 = rem_c // 100
                             rem_c %= 100
@@ -471,27 +497,22 @@ with tab2:
                                 st.markdown("### 👉 請照著畫面「看到幾個就拿幾個」找給同仁：")
                                 board_html = "<div class='money-visual-board'>"
                                 
-                                # 100 元鈔票（有幾張排幾張）
                                 if c100 > 0:
                                     bills_html = "".join([f"<img src='{IMG_URLS['100']}' class='real-bill'/>" for _ in range(c100)])
                                     board_html += f"<div class='money-group-row'>{bills_html}</div>"
                                 
-                                # 50 元硬幣（有幾顆排幾顆）
                                 if c50 > 0:
                                     c50_html = "".join([f"<img src='{IMG_URLS['50']}' class='real-coin-50'/>" for _ in range(c50)])
                                     board_html += f"<div class='money-group-row'>{c50_html}</div>"
 
-                                # 10 元硬幣（有幾顆排幾顆）
                                 if c10 > 0:
                                     c10_html = "".join([f"<img src='{IMG_URLS['10']}' class='real-coin-10'/>" for _ in range(c10)])
                                     board_html += f"<div class='money-group-row'>{c10_html}</div>"
 
-                                # 5 元硬幣（有幾顆排幾顆）
                                 if c5 > 0:
-                                    c5_html = "".join([f"<img src='{IMG_URLS['5']}' class='real-coin-50'/>" for _ in range(c5)])
+                                    c5_html = "".join([f"<img src='{IMG_URLS['5']}' class='real-coin-5'/>" for _ in range(c5)])
                                     board_html += f"<div class='money-group-row'>{c5_html}</div>"
 
-                                # 1 元硬幣（有幾顆排幾顆）
                                 if c1 > 0:
                                     c1_html = "".join([f"<img src='{IMG_URLS['1']}' class='real-coin-1'/>" for _ in range(c1)])
                                     board_html += f"<div class='money-group-row'>{c1_html}</div>"
@@ -512,9 +533,7 @@ with tab2:
 
             st.write("---")
 
-            # ---------------------------------------------------------
             # 點單明細清單與一鍵切換狀態
-            # ---------------------------------------------------------
             st.markdown("#### 📋 點單明細清單與收款切換：")
             st.caption("💡 提示：點擊右側按鈕可快速切換【已付款】或【未付款】狀態。")
 
