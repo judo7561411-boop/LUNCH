@@ -3,6 +3,7 @@ import pandas as pd
 import requests
 import json
 import time
+import re
 from datetime import date
 
 st.set_page_config(page_title="中餐點餐系統", page_icon="🍱", layout="wide")
@@ -97,6 +98,11 @@ def parse_price(val):
         return int(str(val).replace("$", "").replace(",", "").strip())
     except:
         return 0
+
+def parse_extra_price(option_text):
+    """解析字串中的加價金額，如 (+10元) -> 10"""
+    match = re.search(r"\+(\d+)", str(option_text))
+    return int(match.group(1)) if match else 0
 
 def load_menu():
     try:
@@ -193,12 +199,11 @@ tab1, tab2, tab3, tab4 = st.tabs([
 ])
 
 # -------------------------------------------------------------
-# 分頁 1：友善大圖點餐（加入第二步：店家選擇）
+# 分頁 1：友善大圖點餐
 # -------------------------------------------------------------
 with tab1:
     today_str = str(date.today())
     
-    # 點餐完成畫面
     if st.session_state.order_finished:
         pay_amount = st.session_state.last_paid_amount
         st.markdown(f"""
@@ -219,7 +224,6 @@ with tab1:
             st.rerun()
         st.markdown('</div>', unsafe_allow_html=True)
 
-    # 第一步：選擇姓名
     elif st.session_state.selected_user is None:
         st.subheader("👉 第一步：請問你是誰？（點你的名字）")
         if df_users.empty or "姓名" not in df_users.columns:
@@ -242,12 +246,10 @@ with tab1:
                         st.rerun()
                     st.markdown('</div>', unsafe_allow_html=True)
 
-    # 第二步：選擇店家（點選同仁後出現）
     elif st.session_state.selected_store is None:
         u_name = st.session_state.selected_user
         u_limit = st.session_state.user_limit
 
-        # 檢查該同仁今天是否已經點滿
         df_all = st.session_state.orders_data
         already_spent_today = 0
         if not df_all.empty and "員工姓名" in df_all.columns and "訂購日期" in df_all.columns:
@@ -288,11 +290,10 @@ with tab1:
                     st.session_state.cart = []
                     st.rerun()
 
-            # 抓出菜單中所有不重複的店家名稱
             if "店家名稱" in df_menu.columns:
                 store_list = df_menu["店家名稱"].dropna().unique().tolist()
             else:
-                store_list = ["劉妹鍋燒意麵 (鹿港萬壽店)"]
+                store_list = ["主要合作店家"]
 
             if not store_list:
                 store_list = ["主要合作店家"]
@@ -306,7 +307,6 @@ with tab1:
                         st.rerun()
                     st.markdown('</div>', unsafe_allow_html=True)
 
-    # 第三步：挑選該店家的餐點品項
     else:
         u_name = st.session_state.selected_user
         current_store = st.session_state.selected_store
@@ -321,11 +321,7 @@ with tab1:
             already_spent_today = user_today_orders["小計金額"].apply(parse_price).sum()
 
         cart_sum = sum(x["subtotal"] for x in st.session_state.cart)
-
-        if u_limit > 0:
-            remaining_daily_budget = u_limit - already_spent_today - cart_sum
-        else:
-            remaining_daily_budget = 999999
+        remaining_daily_budget = (u_limit - already_spent_today - cart_sum) if u_limit > 0 else 999999
 
         if u_limit > 0:
             limit_info = f"今日限額：<b>${u_limit}</b> 元 ｜ 今日已點：<b>${already_spent_today}</b> 元 ｜ 本次還可點：<b style='color:#DC2626;'>${remaining_daily_budget}</b> 元"
@@ -350,7 +346,7 @@ with tab1:
                     with cc1:
                         st.markdown(f"""
                         <div class="cart-item">
-                            🍲 <b>{c_item['item']}</b> ｜ 麵體：<b>{c_item['noodle']}</b> ｜ 份量：<b>{c_item['extra']}</b> ｜ 金額：<b style="color:#DC2626;">${c_item['subtotal']} 元</b>
+                            🍲 <b>{c_item['item']}</b> ｜ 種類：<b>{c_item['noodle']}</b> ｜ 份量：<b>{c_item['extra']}</b> ｜ 金額：<b style="color:#DC2626;">${c_item['subtotal']} 元</b>
                         </div>
                         """, unsafe_allow_html=True)
                     with cc2:
@@ -400,7 +396,6 @@ with tab1:
         st.write("---")
         st.subheader(f"👇 第三步：請挑選【{current_store}】的餐點：")
 
-        # 篩選供應中且屬於該店家的品項
         available_menu = df_menu.copy()
         if "供應狀態" in available_menu.columns:
             available_menu = available_menu[available_menu["供應狀態"] == "供應中"]
@@ -420,6 +415,19 @@ with tab1:
             cols = st.columns(2)
             for idx, (m_row, base_p) in enumerate(displayed_items):
                 item_name = m_row["餐點名稱"]
+                
+                # -----------------------------------------------------------------
+                # 動態解析該餐點在 menu 試算表中的專屬種類 / 麵類選項
+                # -----------------------------------------------------------------
+                raw_options = str(m_row.get("麵類選擇", "")).strip()
+                if raw_options and raw_options not in ["-", "nan", "無", "固定"]:
+                    type_options = [opt.strip() for opt in re.split(r"[/,、|]+", raw_options) if opt.strip()]
+                else:
+                    type_options = ["標準配置"]
+
+                # 判斷是否提供加麵（若是飲料或飯便當則預設不提供加麵）
+                is_noodle_dish = any(k in item_name or k in raw_options for k in ["麵", "粉", "冬粉", "泡飯"])
+                
                 with cols[idx % 2]:
                     with st.container():
                         st.markdown(f"""
@@ -431,18 +439,23 @@ with tab1:
                         
                         c_nd, c_ex = st.columns(2)
                         with c_nd:
-                            nd_choice = st.selectbox("麵體", ["意麵", "冬粉", "泡飯", "雞絲麵", "王子麵", "烏龍麵 (+10元)"], key=f"nd_{idx}")
+                            nd_choice = st.selectbox("種類選擇", type_options, key=f"nd_{idx}_{item_name}")
                         with c_ex:
-                            ex_choice = st.radio("份量", ["不加麵", "要加麵 (+15元)"], horizontal=True, key=f"ex_{idx}")
+                            if is_noodle_dish:
+                                ex_choice = st.radio("份量", ["不加麵", "要加麵 (+15元)"], horizontal=True, key=f"ex_{idx}_{item_name}")
+                            else:
+                                ex_choice = "不加麵"
+                                st.caption("（本品項為固定份量）")
 
-                        extra_nd = 10 if "烏龍麵" in nd_choice else 0
+                        # 計算動態加價
+                        extra_nd = parse_extra_price(nd_choice)
                         extra_ex = 15 if ex_choice == "要加麵 (+15元)" else 0
                         final_price = base_p + extra_nd + extra_ex
 
                         can_add = (u_limit == 0) or (final_price <= remaining_daily_budget)
                         btn_txt = f"➕ 加入點餐清單 (${final_price} 元)" if can_add else f"❌ 超出今日限額 (${final_price} 元)"
 
-                        if st.button(btn_txt, key=f"add_btn_{idx}", disabled=not can_add):
+                        if st.button(btn_txt, key=f"add_btn_{idx}_{item_name}", disabled=not can_add):
                             st.session_state.cart.append({
                                 "item": item_name,
                                 "price": base_p,
@@ -610,8 +623,7 @@ with tab2:
                             new_item = st.text_input("餐點品項", value=str(orig.get("餐點品項", "")))
                             new_price = st.number_input("小計金額 (元)", min_value=0, value=parse_price(orig.get("小計金額", 0)), step=5)
                         with ed_c2:
-                            new_noodle = st.selectbox("麵類選擇", ["意麵", "冬粉", "泡飯", "雞絲麵", "王子麵", "烏龍麵 (+10元)"], 
-                                                     index=0 if "意麵" in str(orig.get("麵類選擇", "")) else 1)
+                            new_noodle = st.text_input("種類 / 麵類選擇", value=str(orig.get("麵類選擇", "標準配置")))
                             new_extra = st.selectbox("是否加麵", ["不加麵", "要加麵 (+15元)"],
                                                     index=0 if "不加" in str(orig.get("是否加麵", "")) else 1)
                             new_status = st.selectbox("付款狀態", ["未付款", "已付款"],
@@ -697,6 +709,7 @@ with tab2:
 # -------------------------------------------------------------
 with tab3:
     st.subheader("⚙️ 菜單品項維護")
+    st.caption("💡 提示：在【麵類選擇】欄位中填寫該餐點可選的種類（以斜線 / 隔開，如：意麵 / 冬粉 / 烏龍麵 (+10元)），系統點餐時就會自動拆解成獨立選單！")
     if not df_menu.empty:
         st.dataframe(df_menu, use_container_width=True)
     else:
