@@ -217,7 +217,7 @@ tab1, tab2, tab3, tab4 = st.tabs([
 ])
 
 # -------------------------------------------------------------
-# 分頁 1：友善大圖點餐
+# 分頁 1：友善大圖點餐（加入數量選項）
 # -------------------------------------------------------------
 with tab1:
     today_str = str(date.today())
@@ -363,9 +363,10 @@ with tab1:
                 for c_idx, c_item in enumerate(st.session_state.cart):
                     cc1, cc2 = st.columns([4, 1])
                     with cc1:
+                        qty_str = f" x <b>{c_item['qty']}</b>" if c_item['qty'] > 1 else ""
                         st.markdown(f"""
                         <div class="cart-item">
-                            🍲 <b>{c_item['item']}</b> ｜ 種類：<b>{c_item['noodle']}</b> ｜ 份量：<b>{c_item['extra']}</b> ｜ 金額：<b style="color:#DC2626;">${fmt_price(c_item['subtotal'])} 元</b>
+                            🍲 <b>{c_item['item']}</b>{qty_str} ｜ 種類：<b>{c_item['noodle']}</b> ｜ 份量：<b>{c_item['extra']}</b> ｜ 金額：<b style="color:#DC2626;">${fmt_price(c_item['subtotal'])} 元</b>
                         </div>
                         """, unsafe_allow_html=True)
                     with cc2:
@@ -393,8 +394,8 @@ with tab1:
                             "餐點品項": it["item"],
                             "麵類選擇": it["noodle"],
                             "是否加麵": it["extra"],
-                            "單價": f"${fmt_price(it['price'])}",
-                            "數量": 1,
+                            "單價": f"${fmt_price(it['unit_price'])}",
+                            "數量": it["qty"],
                             "小計金額": f"${fmt_price(it['subtotal'])}",
                             "付款狀態": "未付款"
                         })
@@ -446,7 +447,6 @@ with tab1:
                 else:
                     type_options = ["標準配置"]
 
-                # 只有店家名稱為「劉妹」系列時才提供加麵選項
                 is_liumei = "劉妹" in str(current_store)
                 
                 with cols[idx % 2]:
@@ -454,34 +454,40 @@ with tab1:
                         st.markdown(f"""
                         <div class="food-card">
                             <h3 style="margin-top:0; color:#1E293B;">🍲 {item_name}</h3>
-                            <div style="font-size:20px; color:#475569; margin-bottom:8px;">基本價格：<b style="color:#059669;">${fmt_price(base_p)} 元</b></div>
+                            <div style="font-size:20px; color:#475569; margin-bottom:8px;">基本單價：<b style="color:#059669;">${fmt_price(base_p)} 元</b></div>
                         </div>
                         """, unsafe_allow_html=True)
                         
-                        c_nd, c_ex = st.columns(2)
+                        # 第一排：種類選擇 + 數量點選
+                        c_nd, c_qty = st.columns([3, 2])
                         with c_nd:
                             nd_choice = st.selectbox("種類選擇", type_options, key=f"nd_{idx}_{item_name}")
-                        with c_ex:
-                            if is_liumei:
-                                ex_choice = st.radio("份量", ["不加麵", "要加麵 (+15元)"], horizontal=True, key=f"ex_{idx}_{item_name}")
-                            else:
-                                ex_choice = "不加麵"
-                                st.caption("（固定份量）")
+                        with c_qty:
+                            qty_choice = st.number_input("數量", min_value=1, max_value=30, value=1, step=1, key=f"qty_{idx}_{item_name}")
 
+                        # 第二排：若為劉妹則顯示加麵
+                        if is_liumei:
+                            ex_choice = st.radio("份量", ["不加麵", "要加麵 (+15元)"], horizontal=True, key=f"ex_{idx}_{item_name}")
+                        else:
+                            ex_choice = "不加麵"
+
+                        # 單價與小計計算
                         extra_nd = parse_extra_price(nd_choice)
                         extra_ex = 15 if ex_choice == "要加麵 (+15元)" else 0
-                        final_price = round(base_p + extra_nd + extra_ex, 2)
+                        single_unit_price = round(base_p + extra_nd + extra_ex, 2)
+                        total_item_price = round(single_unit_price * qty_choice, 2)
 
-                        can_add = (u_limit == 0) or (final_price <= remaining_daily_budget)
-                        btn_txt = f"➕ 加入點餐清單 (${fmt_price(final_price)} 元)" if can_add else f"❌ 超出今日限額 (${fmt_price(final_price)} 元)"
+                        can_add = (u_limit == 0) or (total_item_price <= remaining_daily_budget)
+                        btn_txt = f"➕ 加入清單 ({qty_choice}份，合計 ${fmt_price(total_item_price)} 元)" if can_add else f"❌ 超出今日限額 (${fmt_price(total_item_price)} 元)"
 
                         if st.button(btn_txt, key=f"add_btn_{idx}_{item_name}", disabled=not can_add):
                             st.session_state.cart.append({
                                 "item": item_name,
-                                "price": base_p,
+                                "unit_price": single_unit_price,
+                                "qty": int(qty_choice),
                                 "noodle": nd_choice,
                                 "extra": ex_choice,
-                                "subtotal": final_price
+                                "subtotal": total_item_price
                             })
                             st.rerun()
 
@@ -641,6 +647,7 @@ with tab2:
                         with ed_c1:
                             new_name = st.text_input("同仁姓名", value=str(orig.get("員工姓名", "")))
                             new_item = st.text_input("餐點品項", value=str(orig.get("餐點品項", "")))
+                            new_qty = st.number_input("數量", min_value=1, value=int(orig.get("數量", 1)), step=1)
                             new_price = st.number_input("小計金額 (元)", min_value=0.0, value=float(parse_price(orig.get("小計金額", 0))), step=0.5)
                         with ed_c2:
                             new_noodle = st.text_input("種類 / 麵類選擇", value=str(orig.get("麵類選擇", "標準配置")))
@@ -655,6 +662,7 @@ with tab2:
                                 idx = matched_rows.index[0]
                                 st.session_state.orders_data.loc[idx, "員工姓名"] = new_name
                                 st.session_state.orders_data.loc[idx, "餐點品項"] = new_item
+                                st.session_state.orders_data.loc[idx, "數量"] = new_qty
                                 st.session_state.orders_data.loc[idx, "麵類選擇"] = new_noodle
                                 st.session_state.orders_data.loc[idx, "是否加麵"] = new_extra
                                 st.session_state.orders_data.loc[idx, "小計金額"] = f"${fmt_price(new_price)}"
@@ -686,7 +694,8 @@ with tab2:
                     with r_c2:
                         st.write(f"👤 **{row_data.get('員工姓名', '')}**")
                     with r_c3:
-                        st.write(f"{row_data.get('餐點品項', '')} ｜ {row_data.get('麵類選擇', '')} ｜ {row_data.get('是否加麵', '')}")
+                        q_info = f" x {row_data.get('數量', 1)}" if str(row_data.get('數量', 1)) not in ["", "1"] else ""
+                        st.write(f"{row_data.get('餐點品項', '')}{q_info} ｜ {row_data.get('麵類選擇', '')} ｜ {row_data.get('是否加麵', '')}")
                     with r_c4:
                         st.write(f"<b style='color:#DC2626;'>{row_data.get('小計金額', '')}</b>", unsafe_allow_html=True)
                     with r_c5:
