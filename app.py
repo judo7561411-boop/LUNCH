@@ -4,14 +4,12 @@ from datetime import date
 
 st.set_page_config(page_title="中餐點餐系統", page_icon="🍱", layout="wide")
 
-# CSS 注入：字體超大、按鈕醒目、認知友善高對比
+# CSS 注入
 st.markdown("""
 <style>
-    /* 全域放大 */
     html, body, [class*="css"] {
         font-size: 20px;
     }
-    /* 人員大按鈕 */
     .user-btn button {
         width: 100% !important;
         min-height: 80px !important;
@@ -25,7 +23,6 @@ st.markdown("""
         border-color: #2563EB !important;
         background-color: #EFF6FF !important;
     }
-    /* 餐點大卡片容器 */
     .food-card {
         background-color: #FFFFFF;
         border: 2px solid #E2E8F0;
@@ -34,7 +31,6 @@ st.markdown("""
         margin-bottom: 16px;
         box-shadow: 0 2px 4px rgba(0,0,0,0.05);
     }
-    /* 購物清單卡片 */
     .cart-item {
         background-color: #F8FAFC;
         border-left: 6px solid #2563EB;
@@ -69,7 +65,7 @@ st.markdown("""
 
 SHEET_ID = "1mHnXoG-Duq45EvwZTRVuq86rsK8T5DA9NkLnOi30wuM"
 
-@st.cache_data(ttl=0)
+# 每次都抓最新資料，不使用快取避免金額不同步
 def load_menu():
     try:
         url = f"https://docs.google.com/spreadsheets/d/{SHEET_ID}/gviz/tq?tqx=out:csv&sheet=menu"
@@ -78,7 +74,6 @@ def load_menu():
     except:
         return pd.DataFrame()
 
-@st.cache_data(ttl=0)
 def load_users():
     try:
         url = f"https://docs.google.com/spreadsheets/d/{SHEET_ID}/gviz/tq?tqx=out:csv&sheet=users"
@@ -87,7 +82,6 @@ def load_users():
     except:
         return pd.DataFrame()
 
-@st.cache_data(ttl=0)
 def load_orders():
     try:
         url = f"https://docs.google.com/spreadsheets/d/{SHEET_ID}/gviz/tq?tqx=out:csv&sheet=orders"
@@ -112,7 +106,6 @@ if "df_users" not in st.session_state:
 if "df_orders" not in st.session_state:
     st.session_state.df_orders = load_orders()
 
-# 狀態管理
 if "selected_user" not in st.session_state:
     st.session_state.selected_user = None
 if "user_limit" not in st.session_state:
@@ -145,7 +138,6 @@ with tab1:
             st.session_state.order_finished = False
             st.rerun()
 
-    # 第一階段：選擇人員
     elif st.session_state.selected_user is None:
         st.subheader("👉 第一步：請問你是誰？（點你的名字）")
         df_u = st.session_state.df_users
@@ -156,7 +148,6 @@ with tab1:
             cols = st.columns(2)
             for idx, (_, u_row) in enumerate(df_u.iterrows()):
                 u_name = str(u_row["姓名"]).strip()
-                # 抓取該同仁在 C 欄的金額限制
                 raw_lim = u_row.get("金額限制", 0)
                 try:
                     lim_val = int(float(str(raw_lim).replace("$", "").replace(",", "").strip())) if pd.notnull(raw_lim) else 0
@@ -174,18 +165,15 @@ with tab1:
                         st.rerun()
                     st.markdown('</div>', unsafe_allow_html=True)
 
-    # 第二階段：依限額篩選並支援複選加購
     else:
         u_name = st.session_state.selected_user
         u_limit = st.session_state.user_limit
         cart_sum = sum(x["subtotal"] for x in st.session_state.cart)
         remain = (u_limit - cart_sum) if u_limit > 0 else 999999
 
-        # 上方個人資訊橫幅
         limit_txt = f"個人上限額度：<b>${u_limit} 元</b> ｜ 剩餘可用：<b style='color:#DC2626;'>${remain} 元</b>" if u_limit > 0 else "個人上限額度：<b>無限制</b>"
         st.markdown(f'<div class="budget-banner">👤 目前同仁：{u_name} ｜ {limit_txt}</div>', unsafe_allow_html=True)
 
-        # 側邊/上方：目前已加入的餐點（購物清單）
         with st.container():
             col_t1, col_t2 = st.columns([3, 1])
             with col_t1:
@@ -212,7 +200,6 @@ with tab1:
 
                 st.write("")
                 if st.button("✅ 我選好了，送出全部餐點！", type="primary", use_container_width=True):
-                    # 寫入 orders 紀錄
                     user_dept = ""
                     df_u = st.session_state.df_users
                     if not df_u.empty and "姓名" in df_u.columns:
@@ -240,16 +227,13 @@ with tab1:
                     st.session_state.df_orders = pd.concat([st.session_state.df_orders, pd.DataFrame(new_rows)], ignore_index=True)
                     st.session_state.order_finished = True
                     st.rerun()
-            else:
-                st.info("💡 請從下方點選想要吃的餐點加入清單（可選多樣）。")
 
         st.write("---")
-        st.subheader("👇 請挑選餐點（系統已自動為你過濾買得起的品項）：")
+        st.subheader("👇 請挑選餐點：")
 
         menu_df = st.session_state.df_menu
         available_menu = menu_df[menu_df["供應狀態"] == "供應中"] if "供應狀態" in menu_df.columns else menu_df
 
-        # 【核心關鍵】事前篩選：只列出底價小於等於個人上限（且小於等於剩餘額度）的餐點
         displayed_items = []
         for _, row in available_menu.iterrows():
             raw_p = row.get("單價", 0)
@@ -258,16 +242,15 @@ with tab1:
             except:
                 base_p = 0
 
-            # 初始限制：餐點底價不得高於個人限額；加點時不得高於剩餘額度
+            # 底價高於個人限額者直接隱藏
             if u_limit > 0 and base_p > u_limit:
-                continue  # 一開始就直接過濾淘汰！
+                continue
 
             displayed_items.append((row, base_p))
 
         if not displayed_items:
             st.warning("⚠️ 沒有符合你金額限制內的餐點項目。")
         else:
-            # 以 2 欄大卡片排列可選餐點
             cols = st.columns(2)
             for idx, (m_row, base_p) in enumerate(displayed_items):
                 item_name = m_row["餐點名稱"]
@@ -280,18 +263,17 @@ with tab1:
                         </div>
                         """, unsafe_allow_html=True)
                         
-                        # 麵體與加麵獨立選單
                         c_nd, c_ex = st.columns(2)
                         with c_nd:
                             nd_choice = st.selectbox("麵體", ["意麵", "冬粉", "泡飯", "雞絲麵", "王子麵", "烏龍麵 (+10元)"], key=f"nd_{idx}")
                         with c_ex:
-                            ex_choice = st.radio("份量", ["不加麵", "加麵 (+15元)"], horizontal=True, key=f"ex_{idx}")
+                            ex_choice = st.radio("份量", ["不加麵", "要加麵 (+15元)"], horizontal=True, key=f"ex_{idx}")
 
+                        # 精準判斷加價：只有在「要加麵 (+15元)」時才加 15 元
                         extra_nd = 10 if "烏龍麵" in nd_choice else 0
-                        extra_ex = 15 if "加麵" in ex_choice else 0
+                        extra_ex = 15 if ex_choice == "要加麵 (+15元)" else 0
                         final_price = base_p + extra_nd + extra_ex
 
-                        # 檢核是否能加入（不超過剩餘額度）
                         can_add = (u_limit == 0) or (final_price <= remain)
                         btn_txt = f"➕ 加入點餐清單 (${final_price} 元)" if can_add else f"❌ 超出剩餘額度 (${final_price} 元)"
 
@@ -317,8 +299,9 @@ with tab2:
         st.write("")
         st.write("")
         if st.button("🔄 重新載入最新資料"):
-            st.cache_data.clear()
             st.session_state.df_orders = load_orders()
+            st.session_state.df_menu = load_menu()
+            st.session_state.df_users = load_users()
             st.rerun()
 
     df_orders = st.session_state.df_orders
