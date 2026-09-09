@@ -5,41 +5,47 @@ from streamlit_gsheets import GSheetsConnection
 
 st.set_page_config(page_title="中餐點餐與對帳系統", page_icon="🍱", layout="wide")
 
+# 直接指定 Google 試算表網址
+SPREADSHEET_URL = "https://docs.google.com/spreadsheets/d/1mHnXoG-Duq45EvwZTRVuq86rsK8T5DA9NkLnOi30wuM/edit"
+
+# 建立連線
 conn = st.connection("gsheets", type=GSheetsConnection)
 
 # -------------------------------------------------------------
-# 資料讀取函式（分頁名稱皆採用英文以避免 Unicode 編碼錯誤）
+# 資料讀取函式（直接帶入網址與英文分頁名）
 # -------------------------------------------------------------
 @st.cache_data(ttl=0)
 def load_menu_data():
     try:
-        df = conn.read(worksheet="menu", ttl=0)
+        df = conn.read(spreadsheet=SPREADSHEET_URL, worksheet="menu", ttl=0)
         if df is not None and not df.empty and "餐點名稱" in df.columns:
             df = df.dropna(subset=["餐點名稱"])
         return df
     except Exception as e:
+        st.error(f"讀取菜單失敗原因: {e}")
         return pd.DataFrame()
 
 @st.cache_data(ttl=0)
 def load_users_data():
     try:
-        df = conn.read(worksheet="users", ttl=0)
+        df = conn.read(spreadsheet=SPREADSHEET_URL, worksheet="users", ttl=0)
         if df is not None and not df.empty and "姓名" in df.columns:
             df = df.dropna(subset=["姓名"])
         return df
     except Exception as e:
+        st.error(f"讀取人員名單失敗原因: {e}")
         return pd.DataFrame()
 
 @st.cache_data(ttl=0)
 def load_orders_data():
     try:
-        # orders 前三列為統計看板，第 4 列（index=3）為標題列
-        df = conn.read(worksheet="orders", header=3, ttl=0)
+        df = conn.read(spreadsheet=SPREADSHEET_URL, worksheet="orders", header=3, ttl=0)
         if df is not None and not df.empty and "訂單編號" in df.columns:
             df = df.dropna(subset=["訂單編號"])
             df = df[df["訂單編號"] != "總計"]
         return df
     except Exception as e:
+        st.error(f"讀取訂單失敗原因: {e}")
         return pd.DataFrame()
 
 df_menu = load_menu_data()
@@ -61,7 +67,7 @@ tab1, tab2, tab3, tab4 = st.tabs([
 with tab1:
     st.subheader("中餐登記")
     if df_menu.empty or df_users.empty:
-        st.warning("⚠️ 尚未讀取到菜單或人員資料，請確認試算表分頁名稱是否已改為 menu 與 users，且權限已公開。")
+        st.warning("⚠️ 菜單或人員資料載入中或為空，若上方有紅色錯誤訊息請參考提示。")
     else:
         available_menu = df_menu[df_menu["供應狀態"] == "供應中"] if "供應狀態" in df_menu.columns else df_menu
         stores = available_menu["店家名稱"].dropna().unique() if "店家名稱" in available_menu.columns else []
@@ -117,7 +123,7 @@ with tab1:
             }])
             
             updated_orders = pd.concat([df_orders, new_record], ignore_index=True)
-            conn.update(worksheet="orders", data=updated_orders)
+            conn.update(spreadsheet=SPREADSHEET_URL, worksheet="orders", data=updated_orders)
             st.cache_data.clear()
             st.success("✅ 點餐登記成功！")
             st.rerun()
