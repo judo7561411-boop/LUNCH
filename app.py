@@ -95,13 +95,25 @@ REQUIRED_ORDER_COLS = [
 
 def parse_price(val):
     try:
-        return int(str(val).replace("$", "").replace(",", "").strip())
+        clean = str(val).replace("$", "").replace(",", "").strip()
+        v = float(clean)
+        return int(v) if v.is_integer() else round(v, 2)
     except:
         return 0
 
+def fmt_price(val):
+    try:
+        v = float(val)
+        return f"{int(v)}" if v.is_integer() else f"{v:.1f}".rstrip('0').rstrip('.')
+    except:
+        return str(val)
+
 def parse_extra_price(option_text):
-    match = re.search(r"\+(\d+)", str(option_text))
-    return int(match.group(1)) if match else 0
+    match = re.search(r"\+(\d+(?:\.\d+)?)", str(option_text))
+    if match:
+        v = float(match.group(1))
+        return int(v) if v.is_integer() else v
+    return 0
 
 def load_menu():
     try:
@@ -215,7 +227,7 @@ with tab1:
         st.markdown(f"""
         <div class="big-pay-box">
             🎉 已完成訂單！<br>
-            請準備 <span style="color: #DC2626; font-size: 44px; font-weight: 900;">${pay_amount}</span> 元付款
+            請準備 <span style="color: #DC2626; font-size: 44px; font-weight: 900;">${fmt_price(pay_amount)}</span> 元付款
         </div>
         """, unsafe_allow_html=True)
         
@@ -240,7 +252,7 @@ with tab1:
                 u_name = str(u_row["姓名"]).strip()
                 raw_lim = u_row.get("金額限制", 0)
                 lim_val = parse_price(raw_lim)
-                lim_badge = f"（限額 ${lim_val} 元）" if lim_val > 0 else "（不限額）"
+                lim_badge = f"（限額 ${fmt_price(lim_val)} 元）" if lim_val > 0 else "（不限額）"
 
                 with cols[idx % 2]:
                     st.markdown('<div class="user-btn">', unsafe_allow_html=True)
@@ -262,13 +274,13 @@ with tab1:
             d_s = df_all["訂購日期"].astype(str).str.replace("-", "/")
             today_slash = today_str.replace("-", "/")
             user_today_orders = df_all[(df_all["員工姓名"] == u_name) & (d_s == today_slash)]
-            already_spent_today = user_today_orders["小計金額"].apply(parse_price).sum()
+            already_spent_today = round(user_today_orders["小計金額"].apply(parse_price).sum(), 2)
 
         if u_limit > 0 and already_spent_today >= u_limit:
             st.markdown(f"""
             <div class="over-limit-box">
                 ⚠️ 【{u_name}】您今日已達到金額上限！<br>
-                本日限定額度：${u_limit} 元 ｜ 今日已點金額：<b>${already_spent_today}</b> 元<br>
+                本日限定額度：${fmt_price(u_limit)} 元 ｜ 今日已點金額：<b>${fmt_price(already_spent_today)}</b> 元<br>
                 <span style="font-size: 22px; color: #4B5563;">（今日不可再加點其他餐點）</span>
             </div>
             """, unsafe_allow_html=True)
@@ -283,7 +295,8 @@ with tab1:
             st.markdown('</div>', unsafe_allow_html=True)
 
         else:
-            limit_txt = f"今日限額：<b>${u_limit}</b> 元 ｜ 今日已累計：<b>${already_spent_today}</b> 元 ｜ 剩餘額度：<b style='color:#DC2626;'>${u_limit - already_spent_today}</b> 元" if u_limit > 0 else "今日限額：<b>無限制</b>"
+            rem_b = round(u_limit - already_spent_today, 2)
+            limit_txt = f"今日限額：<b>${fmt_price(u_limit)}</b> 元 ｜ 今日已累計：<b>${fmt_price(already_spent_today)}</b> 元 ｜ 剩餘額度：<b style='color:#DC2626;'>${fmt_price(rem_b)}</b> 元" if u_limit > 0 else "今日限額：<b>無限制</b>"
             st.markdown(f'<div class="budget-banner">👤 目前同仁：{u_name} ｜ {limit_txt}</div>', unsafe_allow_html=True)
 
             c_head1, c_head2 = st.columns([3, 1])
@@ -324,13 +337,13 @@ with tab1:
             d_s = df_all["訂購日期"].astype(str).str.replace("-", "/")
             today_slash = today_str.replace("-", "/")
             user_today_orders = df_all[(df_all["員工姓名"] == u_name) & (d_s == today_slash)]
-            already_spent_today = user_today_orders["小計金額"].apply(parse_price).sum()
+            already_spent_today = round(user_today_orders["小計金額"].apply(parse_price).sum(), 2)
 
-        cart_sum = sum(x["subtotal"] for x in st.session_state.cart)
-        remaining_daily_budget = (u_limit - already_spent_today - cart_sum) if u_limit > 0 else 999999
+        cart_sum = round(sum(x["subtotal"] for x in st.session_state.cart), 2)
+        remaining_daily_budget = round(u_limit - already_spent_today - cart_sum, 2) if u_limit > 0 else 999999
 
         if u_limit > 0:
-            limit_info = f"今日限額：<b>${u_limit}</b> 元 ｜ 今日已點：<b>${already_spent_today}</b> 元 ｜ 本次還可點：<b style='color:#DC2626;'>${remaining_daily_budget}</b> 元"
+            limit_info = f"今日限額：<b>${fmt_price(u_limit)}</b> 元 ｜ 今日已點：<b>${fmt_price(already_spent_today)}</b> 元 ｜ 本次還可點：<b style='color:#DC2626;'>${fmt_price(remaining_daily_budget)}</b> 元"
         else:
             limit_info = "今日限額：<b>無限制</b>"
 
@@ -339,7 +352,7 @@ with tab1:
         with st.container():
             col_t1, col_t2 = st.columns([3, 1])
             with col_t1:
-                st.markdown(f"### 🛒 本次點餐清單（共 {len(st.session_state.cart)} 樣，本次合計 **${cart_sum}** 元）")
+                st.markdown(f"### 🛒 本次點餐清單（共 {len(st.session_state.cart)} 樣，本次合計 **${fmt_price(cart_sum)}** 元）")
             with col_t2:
                 if st.button("⬅️ 重選店家"):
                     st.session_state.selected_store = None
@@ -352,7 +365,7 @@ with tab1:
                     with cc1:
                         st.markdown(f"""
                         <div class="cart-item">
-                            🍲 <b>{c_item['item']}</b> ｜ 種類：<b>{c_item['noodle']}</b> ｜ 份量：<b>{c_item['extra']}</b> ｜ 金額：<b style="color:#DC2626;">${c_item['subtotal']} 元</b>
+                            🍲 <b>{c_item['item']}</b> ｜ 種類：<b>{c_item['noodle']}</b> ｜ 份量：<b>{c_item['extra']}</b> ｜ 金額：<b style="color:#DC2626;">${fmt_price(c_item['subtotal'])} 元</b>
                         </div>
                         """, unsafe_allow_html=True)
                     with cc2:
@@ -380,9 +393,9 @@ with tab1:
                             "餐點品項": it["item"],
                             "麵類選擇": it["noodle"],
                             "是否加麵": it["extra"],
-                            "單價": f"${it['price']}",
+                            "單價": f"${fmt_price(it['price'])}",
                             "數量": 1,
-                            "小計金額": f"${it['subtotal']}",
+                            "小計金額": f"${fmt_price(it['subtotal'])}",
                             "付款狀態": "未付款"
                         })
 
@@ -441,7 +454,7 @@ with tab1:
                         st.markdown(f"""
                         <div class="food-card">
                             <h3 style="margin-top:0; color:#1E293B;">🍲 {item_name}</h3>
-                            <div style="font-size:20px; color:#475569; margin-bottom:8px;">基本價格：<b style="color:#059669;">${base_p} 元</b></div>
+                            <div style="font-size:20px; color:#475569; margin-bottom:8px;">基本價格：<b style="color:#059669;">${fmt_price(base_p)} 元</b></div>
                         </div>
                         """, unsafe_allow_html=True)
                         
@@ -457,10 +470,10 @@ with tab1:
 
                         extra_nd = parse_extra_price(nd_choice)
                         extra_ex = 15 if ex_choice == "要加麵 (+15元)" else 0
-                        final_price = base_p + extra_nd + extra_ex
+                        final_price = round(base_p + extra_nd + extra_ex, 2)
 
                         can_add = (u_limit == 0) or (final_price <= remaining_daily_budget)
-                        btn_txt = f"➕ 加入點餐清單 (${final_price} 元)" if can_add else f"❌ 超出今日限額 (${final_price} 元)"
+                        btn_txt = f"➕ 加入點餐清單 (${fmt_price(final_price)} 元)" if can_add else f"❌ 超出今日限額 (${fmt_price(final_price)} 元)"
 
                         if st.button(btn_txt, key=f"add_btn_{idx}_{item_name}", disabled=not can_add):
                             st.session_state.cart.append({
@@ -508,19 +521,19 @@ with tab2:
             st.warning(f"⚠️ 在【{query_date}】查無點單紀錄。（請點選上方「📋 顯示全部訂單」確認）")
         else:
             current_orders["金額數值"] = current_orders["小計金額"].apply(parse_price)
-            total_money = current_orders["金額數值"].sum()
+            total_money = round(current_orders["金額數值"].sum(), 2)
             total_items = len(current_orders)
 
             paid_orders = current_orders[current_orders["付款狀態"] == "已付款"]
-            paid_money = paid_orders["金額數值"].sum()
-            unpaid_money = total_money - paid_money
+            paid_money = round(paid_orders["金額數值"].sum(), 2)
+            unpaid_money = round(total_money - paid_money, 2)
             unpaid_count = total_items - len(paid_orders)
 
             m1, m2, m3, m4 = st.columns(4)
-            m1.metric("當前檢視總額", f"${total_money:,} 元")
+            m1.metric("當前檢視總額", f"${fmt_price(total_money)} 元")
             m2.metric("總訂單數", f"{total_items} 筆")
-            m3.metric("已收款總額", f"${paid_money:,} 元", f"{len(paid_orders)} 筆已收")
-            m4.metric("待收餘額 (未收)", f"${unpaid_money:,} 元", f"{unpaid_count} 筆待收", delta_color="inverse")
+            m3.metric("已收款總額", f"${fmt_price(paid_money)} 元", f"{len(paid_orders)} 筆已收")
+            m4.metric("待收餘額 (未收)", f"${fmt_price(unpaid_money)} 元", f"{unpaid_count} 筆待收", delta_color="inverse")
 
             st.write("---")
 
@@ -537,12 +550,12 @@ with tab2:
                     with calc_col1:
                         target_user = st.selectbox("選擇要繳費收款的同仁", options=user_options)
                         user_unpaid_items = unpaid_list[unpaid_list["員工姓名"] == target_user]
-                        target_due = user_unpaid_items["金額數值"].sum()
+                        target_due = round(user_unpaid_items["金額數值"].sum(), 2)
                         
                         st.markdown(f"""
                         <div style="background-color: #FEF2F2; border: 2px solid #F87171; border-radius: 12px; padding: 14px; margin-top: 10px;">
                             👤 收款對象：<b>{target_user}</b><br>
-                            💰 應收金額：<b style="color: #DC2626; font-size: 32px;">${target_due}</b> 元
+                            💰 應收金額：<b style="color: #DC2626; font-size: 32px;">${fmt_price(target_due)}</b> 元
                         </div>
                         """, unsafe_allow_html=True)
 
@@ -551,26 +564,26 @@ with tab2:
                         q_col1, q_col2, q_col3 = st.columns(3)
                         with q_col1:
                             if st.button("剛好", key="pay_exact"):
-                                st.session_state.received_cash = target_due
+                                st.session_state.received_cash = float(target_due)
                         with q_col2:
                             if st.button("💵 拿 100", key="pay_100"):
-                                st.session_state.received_cash = 100
+                                st.session_state.received_cash = 100.0
                         with q_col3:
                             if st.button("💵 拿 500", key="pay_500"):
-                                st.session_state.received_cash = 500
+                                st.session_state.received_cash = 500.0
 
-                        default_val = st.session_state.get("received_cash", target_due)
-                        paid_input = st.number_input("或自訂實收金額 (元)", min_value=0, value=int(default_val), step=10)
+                        default_val = st.session_state.get("received_cash", float(target_due))
+                        paid_input = st.number_input("或自訂實收金額 (元)", min_value=0.0, value=float(default_val), step=1.0)
 
-                        change = paid_input - target_due
+                        change = round(paid_input - target_due, 2)
                         if change >= 0:
                             st.markdown(f"""
                             <div style="background-color: #ECFDF5; border: 2px solid #34D399; border-radius: 12px; padding: 14px; margin-top: 10px;">
-                                🪙 應找零錢：<b style="color: #059669; font-size: 34px;">${change}</b> 元
+                                🪙 應找零錢：<b style="color: #059669; font-size: 34px;">${fmt_price(change)}</b> 元
                             </div>
                             """, unsafe_allow_html=True)
 
-                            rem_c = change
+                            rem_c = int(change)
                             c100 = rem_c // 100
                             rem_c %= 100
                             c50 = rem_c // 50
@@ -612,7 +625,7 @@ with tab2:
                                 st.success(f"已完成 {target_user} 收款！")
                                 st.rerun()
                         else:
-                            st.error(f"⚠️ 還不夠喔！同仁還差 ${abs(change)} 元")
+                            st.error(f"⚠️ 還不夠喔！同仁還差 ${fmt_price(abs(change))} 元")
 
             st.write("---")
             
@@ -628,7 +641,7 @@ with tab2:
                         with ed_c1:
                             new_name = st.text_input("同仁姓名", value=str(orig.get("員工姓名", "")))
                             new_item = st.text_input("餐點品項", value=str(orig.get("餐點品項", "")))
-                            new_price = st.number_input("小計金額 (元)", min_value=0, value=parse_price(orig.get("小計金額", 0)), step=5)
+                            new_price = st.number_input("小計金額 (元)", min_value=0.0, value=float(parse_price(orig.get("小計金額", 0))), step=0.5)
                         with ed_c2:
                             new_noodle = st.text_input("種類 / 麵類選擇", value=str(orig.get("麵類選擇", "標準配置")))
                             new_extra = st.selectbox("是否加麵", ["不加麵", "要加麵 (+15元)"],
@@ -644,7 +657,7 @@ with tab2:
                                 st.session_state.orders_data.loc[idx, "餐點品項"] = new_item
                                 st.session_state.orders_data.loc[idx, "麵類選擇"] = new_noodle
                                 st.session_state.orders_data.loc[idx, "是否加麵"] = new_extra
-                                st.session_state.orders_data.loc[idx, "小計金額"] = f"${new_price}"
+                                st.session_state.orders_data.loc[idx, "小計金額"] = f"${fmt_price(new_price)}"
                                 st.session_state.orders_data.loc[idx, "付款狀態"] = new_status
                                 
                                 sync_to_google_sheet({
@@ -716,7 +729,7 @@ with tab2:
 # -------------------------------------------------------------
 with tab3:
     st.subheader("⚙️ 菜單品項維護")
-    st.caption("💡 提示：在【種類選擇】欄位中填寫該餐點可選的種類（以斜線 / 隔開，如：燴飯/燴麵 或 意麵/冬粉/泡飯），點餐時就會自動拆解成專屬選單！")
+    st.caption("💡 提示：在【種類選擇】欄位中填寫該餐點可選的種類（以斜線 / 隔開，如：燴飯/燴麵 或 意麵/冬粉/泡飯），點餐時就會自動拆解成專屬選單！單價支援小數點（如 7.5）。")
     if not df_menu.empty:
         st.dataframe(df_menu, use_container_width=True)
     else:
