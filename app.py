@@ -4,7 +4,7 @@ from datetime import date
 
 st.set_page_config(page_title="中餐點餐與對帳管理系統", page_icon="🍱", layout="wide")
 
-# CSS 注入：字體、大按鈕與間距優化
+# CSS 注入：友善大字體、大按鈕與超額警示
 st.markdown("""
 <style>
     .big-btn button {
@@ -31,12 +31,23 @@ st.markdown("""
         text-align: center;
         margin-top: 15px;
     }
+    .over-budget-box {
+        background-color: #FDE8E8;
+        border: 3px solid #F98080;
+        border-radius: 16px;
+        padding: 18px;
+        font-size: 24px;
+        font-weight: bold;
+        color: #9B1C1C;
+        text-align: center;
+        margin-top: 15px;
+        margin-bottom: 15px;
+    }
 </style>
 """, unsafe_allow_html=True)
 
 SHEET_ID = "1mHnXoG-Duq45EvwZTRVuq86rsK8T5DA9NkLnOi30wuM"
 
-# 載入試算表
 @st.cache_data(ttl=0)
 def load_menu_sheet():
     try:
@@ -59,9 +70,7 @@ def load_users_sheet():
 def load_orders_sheet():
     try:
         url = f"https://docs.google.com/spreadsheets/d/{SHEET_ID}/gviz/tq?tqx=out:csv&sheet=orders"
-        # 讀取全部資料以精確定位標題列
         raw_df = pd.read_csv(url, header=None)
-        # 尋找含有「訂單編號」的那一列作為真實標題列
         header_row_idx = None
         for i in range(min(10, len(raw_df))):
             row_vals = raw_df.iloc[i].astype(str).tolist()
@@ -69,11 +78,7 @@ def load_orders_sheet():
                 header_row_idx = i
                 break
         
-        if header_row_idx is not None:
-            df = pd.read_csv(url, header=header_row_idx)
-        else:
-            df = pd.read_csv(url, header=3)
-            
+        df = pd.read_csv(url, header=header_row_idx if header_row_idx is not None else 3)
         if not df.empty and "訂單編號" in df.columns:
             df = df.dropna(subset=["訂單編號"])
             df = df[df["訂單編號"].astype(str).str.strip() != "總計"]
@@ -85,6 +90,10 @@ def load_orders_sheet():
             "餐點品項", "麵類選擇", "是否加麵", "單價", "數量", "小計金額", "付款狀態"
         ])
 
+# 預設每人補助/金額上限（預設 120 元）
+if "max_budget_per_person" not in st.session_state:
+    st.session_state.max_budget_per_person = 120
+
 if "df_menu" not in st.session_state:
     st.session_state.df_menu = load_menu_sheet()
 
@@ -94,7 +103,6 @@ if "df_users" not in st.session_state:
 if "df_orders" not in st.session_state:
     st.session_state.df_orders = load_orders_sheet()
 
-# 友善點餐精靈狀態
 if "step" not in st.session_state:
     st.session_state.step = 1
 if "order_name" not in st.session_state:
@@ -110,15 +118,16 @@ if "order_extra" not in st.session_state:
 
 st.title("🍱 中餐點餐與對帳管理系統")
 
-tab1, tab2, tab3, tab4 = st.tabs([
+tab1, tab2, tab3, tab4, tab5 = st.tabs([
     "🛒 友善大圖點餐", 
     "📊 明細與對帳", 
     "⚙️ 菜單管理與編輯", 
-    "👥 人員名單管理"
+    "👥 人員名單管理",
+    "🛡️ 規則與金額限制"
 ])
 
 # -------------------------------------------------------------
-# 分頁 1：友善大圖點餐
+# 分頁 1：友善大圖點餐（含金額上限檢驗）
 # -------------------------------------------------------------
 with tab1:
     st.markdown(f"## 👉 目前步驟：第 {st.session_state.step} 步 / 共 4 步")
@@ -210,26 +219,37 @@ with tab1:
         extra_fee = 15 if "加麵" in st.session_state.order_extra else 0
         total_p = st.session_state.order_item_price + extra_nd_fee + extra_fee
 
+        # 金額限制檢核
+        max_limit = st.session_state.max_budget_per_person
+        is_over_budget = total_p > max_limit
+
         st.markdown(f"""
         <div style="background-color: #F8FAFC; border: 2px solid #CBD5E1; border-radius: 16px; padding: 24px; font-size: 26px; line-height: 2.2;">
             👤 姓名：<b>{st.session_state.order_name}</b><br>
             🍲 餐點：<b>{st.session_state.order_item}</b><br>
             🍜 麵類：<b>{st.session_state.order_noodle}</b><br>
             🥣 份量：<b>{st.session_state.order_extra}</b><br>
-            💵 金額：<b style="color: #E02424; font-size: 36px;">${total_p} 元</b>
+            💵 金額：<b style="color: {'#E02424' if is_over_budget else '#1E40AF'}; font-size: 36px;">${total_p} 元</b>
+            <span style="font-size: 20px; color: #64748B;">（每人上限：${max_limit} 元）</span>
         </div>
         """, unsafe_allow_html=True)
-        st.write("")
 
+        if is_over_budget:
+            st.markdown(f"""
+            <div class="over-budget-box">
+                ⚠️ 超過金額上限囉！目前上限為 ${max_limit} 元，請重選餐點或不加麵。
+            </div>
+            """, unsafe_allow_html=True)
+
+        st.write("")
         c1, c2 = st.columns(2)
         with c1:
-            if st.button("❌ 不對，全部重新選"):
-                st.session_state.step = 1
-                st.session_state.order_name = None
-                st.session_state.order_item = None
+            if st.button("❌ 不對，重新選餐"):
+                st.session_state.step = 2
                 st.rerun()
         with c2:
-            if st.button("✅ 正確，按這裡送出！", type="primary"):
+            # 超額時停用送出按鈕
+            if st.button("✅ 正確，按這裡送出！", type="primary", disabled=is_over_budget):
                 user_dept = ""
                 if not st.session_state.df_users.empty and "姓名" in st.session_state.df_users.columns:
                     match_u = st.session_state.df_users[st.session_state.df_users["姓名"] == st.session_state.order_name]
@@ -265,11 +285,10 @@ with tab1:
                     st.rerun()
 
 # -------------------------------------------------------------
-# 分頁 2：明細與收款對帳（欄位對齊修復與在線修改）
+# 分頁 2：明細與對帳
 # -------------------------------------------------------------
 with tab2:
     st.subheader("📊 每日點餐明細與收款對帳")
-
     col_q1, col_q2 = st.columns([2, 1])
     with col_q1:
         query_date = st.date_input("選擇欲對帳或查詢的日期", value=date.today())
@@ -287,7 +306,6 @@ with tab2:
         st.info("尚無任何訂單紀錄。")
     else:
         current_orders = df_orders[df_orders["訂購日期"].astype(str) == str(query_date)].copy()
-
         if current_orders.empty:
             st.info(f"【{query_date}】當日尚無任何點單紀錄。")
         else:
@@ -313,35 +331,21 @@ with tab2:
             m4.metric("待收餘額 (未付)", f"${unpaid_money:,} 元", f"{unpaid_count} 筆未付", delta_color="inverse")
 
             st.write("---")
-            st.markdown("#### ✏️ 點單明細清單（可直接在表格內修改付款狀態）：")
-            st.caption("💡 提示：點擊「付款狀態」欄位切換【已付款】或【未付款】，修改後請點擊下方【💾 儲存明細修改】。")
-
+            st.markdown("#### ✏️ 點單明細清單：")
             column_config = {
-                "付款狀態": st.column_config.SelectboxColumn(
-                    "付款狀態",
-                    help="核對該同仁是否已交錢",
-                    options=["已付款", "未付款"],
-                    required=True
-                )
+                "付款狀態": st.column_config.SelectboxColumn("付款狀態", options=["已付款", "未付款"], required=True)
             }
-
             display_cols = [c for c in current_orders.columns if c != "金額數值"]
-            edited_today = st.data_editor(
-                current_orders[display_cols],
-                column_config=column_config,
-                use_container_width=True,
-                num_rows="dynamic",
-                key="orders_editor"
-            )
+            edited_today = st.data_editor(current_orders[display_cols], column_config=column_config, use_container_width=True, num_rows="dynamic", key="orders_editor")
 
-            if st.button("💾 儲存明細修改（包含付款狀態與修改內容）", type="primary"):
+            if st.button("💾 儲存明細修改", type="primary"):
                 other_orders = df_orders[df_orders["訂購日期"].astype(str) != str(query_date)]
                 st.session_state.df_orders = pd.concat([other_orders, edited_today], ignore_index=True)
                 st.success("✅ 訂單與收款狀態已成功更新！")
                 st.rerun()
 
 # -------------------------------------------------------------
-# 分頁 3：菜單管理與編輯
+# 分頁 3：菜單管理
 # -------------------------------------------------------------
 with tab3:
     st.subheader("⚙️ 菜單品項維護")
@@ -356,15 +360,7 @@ with tab3:
             new_note = st.text_input("備註")
             if st.form_submit_button("確認新增品項"):
                 if new_item_name:
-                    new_entry = pd.DataFrame([{
-                        "店家名稱": new_store,
-                        "分類": new_category,
-                        "餐點名稱": new_item_name,
-                        "麵類選擇": new_noodles,
-                        "單價": f"${new_price}",
-                        "供應狀態": new_status,
-                        "備註": new_note
-                    }])
+                    new_entry = pd.DataFrame([{"店家名稱": new_store, "分類": new_category, "餐點名稱": new_item_name, "麵類選擇": new_noodles, "單價": f"${new_price}", "供應狀態": new_status, "備註": new_note}])
                     st.session_state.df_menu = pd.concat([st.session_state.df_menu, new_entry], ignore_index=True)
                     st.success(f"已新增品項：{new_item_name}！")
                     st.rerun()
@@ -396,3 +392,17 @@ with tab4:
     if st.button("💾 儲存人員名單修改"):
         st.session_state.df_users = edited_users
         st.success("人員名單已更新至系統！")
+
+# -------------------------------------------------------------
+# 分頁 5：規則與金額限制（管理員自訂上限）
+# -------------------------------------------------------------
+with tab5:
+    st.subheader("🛡️ 點餐規則與每人金額上限設定")
+    st.info("💡 此處設定的金額將作為同仁點餐的最高限制。若點餐總額（含換麵、加麵）超過該數值，系統將不允許送出點單。")
+    
+    current_limit = st.session_state.max_budget_per_person
+    new_limit = st.number_input("設定每人單餐最高上限金額 (元)", min_value=50, max_value=500, value=current_limit, step=5)
+    
+    if st.button("💾 儲存金額上限設定", type="primary"):
+        st.session_state.max_budget_per_person = int(new_limit)
+        st.success(f"✅ 金額上限已成功修改為：每人 ${new_limit} 元！")
