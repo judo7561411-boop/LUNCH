@@ -110,7 +110,6 @@ def load_menu():
         df = pd.read_csv(url)
         df.columns = [str(c).strip() for c in df.columns]
         
-        # 兼容「種類選擇」與「麵類選擇」
         if "種類選擇" in df.columns and "麵類選擇" not in df.columns:
             df.rename(columns={"種類選擇": "麵類選擇"}, inplace=True)
             
@@ -423,9 +422,6 @@ with tab1:
             for idx, (m_row, base_p) in enumerate(displayed_items):
                 item_name = m_row["餐點名稱"]
                 
-                # -----------------------------------------------------------------
-                # 兼容搜尋「種類選擇」或「麵類選擇」
-                # -----------------------------------------------------------------
                 raw_options = ""
                 if "種類選擇" in m_row:
                     raw_options = str(m_row["種類選擇"]).strip()
@@ -433,13 +429,12 @@ with tab1:
                     raw_options = str(m_row["麵類選擇"]).strip()
 
                 if raw_options and raw_options not in ["-", "nan", "無", "固定"]:
-                    # 支援依照 / , 、 | 分隔種類
                     type_options = [opt.strip() for opt in re.split(r"[/,、|]+", raw_options) if opt.strip()]
                 else:
                     type_options = ["標準配置"]
 
-                # 智慧判斷是否提供加麵選項
-                is_noodle_dish = any(k in item_name or k in raw_options for k in ["麵", "粉", "冬粉", "泡飯"])
+                # 只有店家名稱為「劉妹」系列時才提供加麵選項
+                is_liumei = "劉妹" in str(current_store)
                 
                 with cols[idx % 2]:
                     with st.container():
@@ -454,11 +449,11 @@ with tab1:
                         with c_nd:
                             nd_choice = st.selectbox("種類選擇", type_options, key=f"nd_{idx}_{item_name}")
                         with c_ex:
-                            if is_noodle_dish:
+                            if is_liumei:
                                 ex_choice = st.radio("份量", ["不加麵", "要加麵 (+15元)"], horizontal=True, key=f"ex_{idx}_{item_name}")
                             else:
                                 ex_choice = "不加麵"
-                                st.caption("（本品項為固定份量）")
+                                st.caption("（固定份量）")
 
                         extra_nd = parse_extra_price(nd_choice)
                         extra_ex = 15 if ex_choice == "要加麵 (+15元)" else 0
