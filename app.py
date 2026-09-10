@@ -67,49 +67,49 @@ st.markdown("""
     /* 純文字無底色步驟標題 */
     .step-title {
         color: #1E293B !important;
-        font-size: 28px !important;
+        font-size: 32px !important;
         font-weight: 900 !important;
-        margin-top: 10px !important;
+        margin-top: 14px !important;
         margin-bottom: 18px !important;
-        padding-left: 4px !important;
-        border-left: 6px solid #2563EB;
+        padding-left: 6px !important;
+        border-left: 8px solid #2563EB;
         line-height: 1.3 !important;
     }
 
     /* 人員選擇按鈕 (色彩立體加強) */
     .user-btn button {
-        width: 100% !important; min-height: 96px !important;
-        font-size: 28px !important; font-weight: 900 !important;
-        border-radius: 18px !important; margin-bottom: 16px !important;
+        width: 100% !important; min-height: 105px !important;
+        font-size: 30px !important; font-weight: 900 !important;
+        border-radius: 20px !important; margin-bottom: 16px !important;
         background: linear-gradient(135deg, #F0FDF4 0%, #DCFCE7 100%) !important;
         color: #14532D !important;
-        border: 3px solid #22C55E !important;
-        box-shadow: 0 4px 10px rgba(34,197,94,0.18) !important;
+        border: 3.5px solid #22C55E !important;
+        box-shadow: 0 5px 12px rgba(34,197,94,0.18) !important;
         transition: all 0.15s ease-in-out !important;
     }
     .user-btn button:hover {
         background: #BBF7D0 !important;
         border-color: #16A34A !important;
         transform: translateY(-2px);
-        box-shadow: 0 6px 14px rgba(22,163,74,0.25) !important;
+        box-shadow: 0 7px 16px rgba(22,163,74,0.25) !important;
     }
 
     /* 店家選擇按鈕 (溫暖琥珀金色彩) */
     .store-btn button {
-        width: 100% !important; min-height: 105px !important;
-        font-size: 28px !important; font-weight: 900 !important;
-        border-radius: 20px !important; margin-bottom: 16px !important;
+        width: 100% !important; min-height: 115px !important;
+        font-size: 30px !important; font-weight: 900 !important;
+        border-radius: 22px !important; margin-bottom: 16px !important;
         background: linear-gradient(135deg, #FFFBEB 0%, #FEF3C7 100%) !important;
         color: #78350F !important;
         border: 3.5px solid #F59E0B !important;
-        box-shadow: 0 5px 12px rgba(245,158,11,0.2) !important;
+        box-shadow: 0 6px 14px rgba(245,158,11,0.2) !important;
         transition: all 0.15s ease-in-out !important;
     }
     .store-btn button:hover {
         background: #FDE68A !important;
         border-color: #D97706 !important;
         transform: translateY(-2px);
-        box-shadow: 0 7px 16px rgba(217,119,6,0.28) !important;
+        box-shadow: 0 8px 18px rgba(217,119,6,0.28) !important;
     }
 
     /* 頂部吸附容器 (背景純白陰影) */
@@ -119,59 +119,61 @@ st.markdown("""
         top: 50px !important;
         z-index: 9999 !important;
         background: #FFFFFF !important;
-        padding: 12px 14px !important;
-        border-radius: 16px !important;
-        border: 2.5px solid #CBD5E1 !important;
-        box-shadow: 0 8px 18px rgba(0,0,0,0.12) !important;
-        margin-bottom: 20px !important;
+        padding: 14px 16px !important;
+        border-radius: 18px !important;
+        border: 3px solid #CBD5E1 !important;
+        box-shadow: 0 8px 20px rgba(0,0,0,0.14) !important;
+        margin-bottom: 22px !important;
     }
 
-    /* 餐點類別按鈕：點選色彩醒目切換 (未選粉藍、選中寶石藍) */
+    /* 特大號餐點類別按鈕：超大觸控面積、大字體、好點按 */
     div.category-sticky-wrap div[data-testid="stRadio"] > div[role="radiogroup"] {
         display: flex !important;
         flex-wrap: wrap !important;
-        gap: 12px !important;
+        gap: 14px !important;
     }
     div.category-sticky-wrap div[data-testid="stRadio"] > div[role="radiogroup"] > label {
         background-color: #F0F9FF !important;
-        border: 3px solid #38BDF8 !important;
-        border-radius: 16px !important;
-        padding: 12px 24px !important;
-        min-height: 66px !important;
+        border: 3.5px solid #38BDF8 !important;
+        border-radius: 18px !important;
+        padding: 14px 28px !important;
+        min-height: 78px !important;
         display: flex !important;
         align-items: center !important;
         justify-content: center !important;
-        font-size: 26px !important;
+        font-size: 28px !important;
         font-weight: 900 !important;
         color: #0369A1 !important;
-        box-shadow: 0 3px 6px rgba(0,0,0,0.06) !important;
+        box-shadow: 0 4px 8px rgba(0,0,0,0.08) !important;
         cursor: pointer !important;
+        transition: all 0.15s ease-in-out !important;
     }
     div.category-sticky-wrap div[data-testid="stRadio"] > div[role="radiogroup"] > label:hover {
         border-color: #0284C7 !important;
         background-color: #E0F2FE !important;
+        transform: scale(1.02);
     }
     div.category-sticky-wrap div[data-testid="stRadio"] > div[role="radiogroup"] > label[data-checked="true"],
     div.category-sticky-wrap div[data-testid="stRadio"] > div[role="radiogroup"] > label:has(input:checked) {
         background-color: #2563EB !important;
         border-color: #1D4ED8 !important;
         color: #FFFFFF !important;
-        box-shadow: 0 4px 12px rgba(37,99,235,0.3) !important;
+        box-shadow: 0 5px 14px rgba(37,99,235,0.35) !important;
     }
 
     /* 餐點卡片 */
     .food-card {
-        background-color: #FFFFFF; border: 2px solid #E2E8F0;
-        border-radius: 18px; padding: 18px; margin-bottom: 18px;
-        box-shadow: 0 3px 8px rgba(0,0,0,0.05);
+        background-color: #FFFFFF; border: 2.5px solid #E2E8F0;
+        border-radius: 20px; padding: 20px; margin-bottom: 20px;
+        box-shadow: 0 4px 10px rgba(0,0,0,0.06);
     }
     
-    /* 數量 +/- 按鈕色彩 */
+    /* 特大號數量 +/- 按鈕色彩 */
     .qty-control button {
-        font-size: 28px !important; font-weight: 900 !important;
-        min-height: 54px !important; width: 100% !important;
-        border-radius: 14px !important;
-        border: 2px solid #3B82F6 !important;
+        font-size: 32px !important; font-weight: 900 !important;
+        min-height: 60px !important; width: 100% !important;
+        border-radius: 16px !important;
+        border: 2.5px solid #3B82F6 !important;
         background-color: #EFF6FF !important;
         color: #1D4ED8 !important;
     }
@@ -179,21 +181,21 @@ st.markdown("""
         background-color: #DBEAFE !important;
     }
     .qty-display {
-        font-size: 28px; font-weight: 900; color: #1E293B;
-        text-align: center; line-height: 54px;
-        background-color: #F8FAFC; border-radius: 12px;
-        border: 1.5px solid #CBD5E1;
+        font-size: 30px; font-weight: 900; color: #1E293B;
+        text-align: center; line-height: 60px;
+        background-color: #F8FAFC; border-radius: 14px;
+        border: 2px solid #CBD5E1;
     }
     
-    /* 加入購物車大按鈕 (鮮綠底白字) */
+    /* 特大號加入購物車按鈕 (鮮綠底白字) */
     .add-cart-btn button {
-        width: 100% !important; min-height: 64px !important;
-        font-size: 24px !important; font-weight: 900 !important;
-        border-radius: 16px !important;
+        width: 100% !important; min-height: 72px !important;
+        font-size: 26px !important; font-weight: 900 !important;
+        border-radius: 18px !important;
         background-color: #10B981 !important;
-        border: 2px solid #059669 !important;
+        border: 2.5px solid #059669 !important;
         color: #FFFFFF !important;
-        box-shadow: 0 4px 8px rgba(16,185,129,0.2) !important;
+        box-shadow: 0 5px 10px rgba(16,185,129,0.22) !important;
     }
     .add-cart-btn button:hover {
         background-color: #059669 !important;
@@ -201,28 +203,28 @@ st.markdown("""
 
     /* 預算資訊標記 */
     .budget-tag {
-        font-size: 22px; font-weight: bold; color: #334155;
-        margin-bottom: 16px; padding: 10px 14px;
-        background-color: #F8FAFC; border-radius: 10px;
-        border-left: 5px solid #3B82F6;
+        font-size: 24px; font-weight: bold; color: #334155;
+        margin-bottom: 18px; padding: 12px 16px;
+        background-color: #F8FAFC; border-radius: 12px;
+        border-left: 6px solid #3B82F6;
     }
     
     .over-limit-box {
         background-color: #FEF2F2; border: 2.5px solid #F87171;
-        border-radius: 16px; padding: 22px; font-size: 28px;
+        border-radius: 18px; padding: 24px; font-size: 28px;
         font-weight: bold; color: #991B1B; text-align: center;
         margin-top: 15px; margin-bottom: 20px;
     }
     .big-pay-box {
         background-color: #F0FDF4; border: 2.5px solid #4ADE80;
-        border-radius: 16px; padding: 22px; font-size: 32px;
+        border-radius: 18px; padding: 24px; font-size: 34px;
         font-weight: bold; color: #166534; text-align: center;
         margin-top: 15px; margin-bottom: 20px;
     }
     .big-next-btn button {
-        width: 100% !important; min-height: 90px !important;
-        font-size: 32px !important; font-weight: bold !important;
-        border-radius: 18px !important; background-color: #EF4444 !important;
+        width: 100% !important; min-height: 95px !important;
+        font-size: 34px !important; font-weight: bold !important;
+        border-radius: 20px !important; background-color: #EF4444 !important;
         color: white !important; box-shadow: 0 4px 10px rgba(239,68,68,0.2) !important;
     }
     .big-next-btn button:hover { background-color: #DC2626 !important; }
@@ -230,8 +232,8 @@ st.markdown("""
     .scroll-top-btn {
         display: block; width: 100%; text-align: center;
         background-color: #0284C7; color: #FFFFFF !important;
-        font-size: 24px; font-weight: bold; padding: 18px;
-        border-radius: 16px; text-decoration: none; margin-top: 25px;
+        font-size: 26px; font-weight: bold; padding: 20px;
+        border-radius: 18px; text-decoration: none; margin-top: 25px;
         box-shadow: 0 4px 8px rgba(0,0,0,0.12);
     }
     .scroll-top-btn:hover { background-color: #0369A1; }
@@ -239,10 +241,10 @@ st.markdown("""
     .float-top-btn {
         position: fixed; bottom: 25px; right: 25px; z-index: 99999;
         background-color: #0284C7; color: white !important;
-        width: 65px; height: 65px; border-radius: 50%;
+        width: 70px; height: 70px; border-radius: 50%;
         display: flex; align-items: center; justify-content: center;
-        font-size: 28px; font-weight: bold; text-decoration: none;
-        box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+        font-size: 30px; font-weight: bold; text-decoration: none;
+        box-shadow: 0 4px 14px rgba(0,0,0,0.32);
     }
     .float-top-btn:hover { background-color: #0369A1; }
 
@@ -417,7 +419,7 @@ tab1, tab2, tab3, tab4 = st.tabs([
 ])
 
 # -------------------------------------------------------------
-# 分頁 1：友善大圖點餐（按鈕著色、標題純淨化）
+# 分頁 1：友善大圖點餐
 # -------------------------------------------------------------
 with tab1:
     today_str = str(date.today())
@@ -627,11 +629,10 @@ with tab1:
             raw_cats = [str(c).strip() for c in store_menu["分類"].dropna().unique().tolist() if str(c).strip() not in ["", "nan"]]
             available_categories.extend(raw_cats)
 
-        st.markdown('<div class="step-title">請看圖片選你想吃的種類（點選按鈕切換）</div>', unsafe_allow_html=True)
+        # 修改後文字：你今天想吃什麼?
+        st.markdown('<div class="step-title">你今天想吃什麼？</div>', unsafe_allow_html=True)
         
-        # -------------------------------------------------------------
-        # 吸附置頂的分類選單 (按鈕著色切換)
-        # -------------------------------------------------------------
+        # 吸附置頂的分類選單 (按鈕特大化)
         st.markdown('<div class="category-sticky-wrap">', unsafe_allow_html=True)
         visual_options = [get_category_visual(c) for c in available_categories]
         cur_visual = get_category_visual(st.session_state.selected_category)
@@ -699,7 +700,7 @@ with tab1:
                         st.markdown(f"""
                         <div class="food-card">
                             <h3 style="margin-top:0; margin-bottom:6px; color:#0F172A;">🍲 {item_name}</h3>
-                            <div style="font-size:22px; color:#475569; margin-bottom:12px;">單價：<b style="color:#059669; font-size:26px;">${fmt_price(base_p)} 元</b></div>
+                            <div style="font-size:24px; color:#475569; margin-bottom:14px;">單價：<b style="color:#059669; font-size:28px;">${fmt_price(base_p)} 元</b></div>
                         </div>
                         """, unsafe_allow_html=True)
                         
