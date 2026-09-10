@@ -41,6 +41,45 @@ st.markdown("""
         background-color: #FDE68A !important; border-color: #D97706 !important;
     }
 
+    /* 置頂吸附分類導航列 (Sticky Header) */
+    .sticky-category-bar {
+        position: -webkit-sticky;
+        position: sticky;
+        top: 0;
+        z-index: 999;
+        background-color: #F8FAFC;
+        padding: 14px 10px;
+        margin-bottom: 18px;
+        border-bottom: 3px solid #3B82F6;
+        border-radius: 0 0 16px 16px;
+        box-shadow: 0 6px 12px rgba(0,0,0,0.08);
+    }
+
+    /* 分類大按鈕：加大字體、間距與點擊範圍 */
+    div[data-testid="stRadio"] > div[role="radiogroup"] {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 12px;
+    }
+    div[data-testid="stRadio"] > div[role="radiogroup"] > label {
+        background-color: #FFFFFF;
+        border: 2px solid #94A3B8;
+        border-radius: 14px;
+        padding: 12px 24px !important;
+        min-height: 64px !important;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 24px !important;
+        font-weight: 900 !important;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+        cursor: pointer;
+    }
+    div[data-testid="stRadio"] > div[role="radiogroup"] > label:hover {
+        border-color: #2563EB;
+        background-color: #EFF6FF;
+    }
+
     /* 餐點大圖卡 */
     .food-card {
         background-color: #FFFFFF; border: 2px solid #CBD5E1;
@@ -97,7 +136,6 @@ st.markdown("""
         border-radius: 14px !important;
     }
     
-    /* 底部返回最頂端大按鈕 */
     .scroll-top-btn {
         display: block; width: 100%; text-align: center;
         background-color: #0284C7; color: #FFFFFF !important;
@@ -107,14 +145,13 @@ st.markdown("""
     }
     .scroll-top-btn:hover { background-color: #0369A1; }
 
-    /* 懸浮右下角小圓鍵 */
     .float-top-btn {
         position: fixed; bottom: 25px; right: 25px; z-index: 9999;
         background-color: #0284C7; color: white !important;
-        width: 60px; height: 60px; border-radius: 50%;
+        width: 65px; height: 65px; border-radius: 50%;
         display: flex; align-items: center; justify-content: center;
-        font-size: 26px; font-weight: bold; text-decoration: none;
-        box-shadow: 0 4px 10px rgba(0,0,0,0.25);
+        font-size: 28px; font-weight: bold; text-decoration: none;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.3);
     }
     .float-top-btn:hover { background-color: #0369A1; }
 
@@ -133,7 +170,7 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# 錨點與浮動置頂鍵
+# 頂部錨點與全螢幕懸浮置頂按鈕
 st.markdown('<div id="top_anchor"></div>', unsafe_allow_html=True)
 st.markdown('<a href="#top_anchor" class="float-top-btn" title="回頂部">⬆️</a>', unsafe_allow_html=True)
 
@@ -290,7 +327,7 @@ tab1, tab2, tab3, tab4 = st.tabs([
 ])
 
 # -------------------------------------------------------------
-# 分頁 1：友善大圖點餐（加入分類選擇與回頂部鍵）
+# 分頁 1：友善大圖點餐（隨螢幕下滑置頂吸附的分類導航列）
 # -------------------------------------------------------------
 with tab1:
     today_str = str(date.today())
@@ -394,7 +431,7 @@ with tab1:
                         st.rerun()
                     st.markdown('</div>', unsafe_allow_html=True)
 
-    # 第三步：先挑選類別，再點選餐點
+    # 第三步：挑選餐點
     else:
         u_name = st.session_state.selected_user
         current_store = st.session_state.selected_store
@@ -485,31 +522,33 @@ with tab1:
 
         st.write("---")
 
-        # 篩選此店家的菜單
+        # 篩選菜單
         store_menu = df_menu.copy()
         if "供應狀態" in store_menu.columns:
-            store_menu = store_menu[store_menu["供应状态" if "供应状态" in store_menu.columns else "供應狀態"] == "供應中"]
+            store_menu = store_menu[store_menu["供應狀態"] == "供應中"]
         if "店家名稱" in store_menu.columns and current_store:
             store_menu = store_menu[store_menu["店家名稱"] == current_store]
 
-        # -----------------------------------------------------------------
-        # 類別選擇大按鈕（橫排 Pill 按鈕）
-        # -----------------------------------------------------------------
-        st.subheader(f"👇 第三步：請選擇【{current_store}】的餐點類別：")
-        
         available_categories = ["全部品項"]
         if "分類" in store_menu.columns:
             raw_cats = [str(c).strip() for c in store_menu["分類"].dropna().unique().tolist() if str(c).strip() not in ["", "nan"]]
             available_categories.extend(raw_cats)
 
+        # -------------------------------------------------------------
+        # 隨著頁面下滑吸附置頂的分類選單 (Sticky Header + 大膠囊鍵)
+        # -------------------------------------------------------------
+        st.markdown('<div class="sticky-category-bar">', unsafe_allow_html=True)
+        st.markdown(f"**📌 請選擇餐點分類（自動吸附置頂）：**")
         cat_choice = st.radio(
-            label="餐點分類",
+            label="餐點分類選單",
             options=available_categories,
             horizontal=True,
             index=available_categories.index(st.session_state.selected_category) if st.session_state.selected_category in available_categories else 0,
-            key="category_selector"
+            key="category_selector",
+            label_visibility="collapsed"
         )
         st.session_state.selected_category = cat_choice
+        st.markdown('</div>', unsafe_allow_html=True)
 
         # 依所選類別進一步篩選菜單品項
         if cat_choice != "全部品項" and "分類" in store_menu.columns:
@@ -561,7 +600,7 @@ with tab1:
                         st.markdown(f"""
                         <div class="food-card">
                             <h3 style="margin-top:0; margin-bottom:6px; color:#1E293B;">🍲 {item_name}</h3>
-                            <div style="font-size:20px; color:#475569; margin-bottom:12px;">基本單價：<b style="color:#059669; font-size:24px;">${fmt_price(base_p)} 元</b></div>
+                            <div style="font-size:20px; color:#475569; margin-bottom:12px;">單價：<b style="color:#059669; font-size:24px;">${fmt_price(base_p)} 元</b></div>
                         </div>
                         """, unsafe_allow_html=True)
                         
@@ -632,9 +671,7 @@ with tab1:
                         st.markdown('</div>', unsafe_allow_html=True)
                         st.write("---")
 
-        # -------------------------------------------------------------
         # 底部大按鈕：返回最頂端
-        # -------------------------------------------------------------
         st.markdown('<a href="#top_anchor" class="scroll-top-btn">⬆️ 返回最頂端（查看購物車／重選店家）</a>', unsafe_allow_html=True)
 
 # -------------------------------------------------------------
