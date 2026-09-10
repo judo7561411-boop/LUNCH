@@ -13,11 +13,56 @@ APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbw0UEIp80umbupbDQkMQA
 SHEET_ID = "1mHnXoG-Duq45EvwZTRVuq86rsK8T5DA9NkLnOi30wuM"
 ORDERS_GID = "1002"
 
+# 注入真正能吸附在 Streamlit 滾動容器的 CSS
 st.markdown("""
 <style>
     html { scroll-behavior: smooth; }
     html, body, [class*="css"] { font-size: 20px; }
     
+    /* 解除 Streamlit 父層 overflow 限制，讓 Sticky 正常作用 */
+    section.main > div {
+        overflow: visible !important;
+    }
+    
+    /* 核心：精準讓分類選單容器永久浮動在頂部 */
+    div.category-sticky-wrap {
+        position: -webkit-sticky !important;
+        position: sticky !important;
+        top: 50px !important;
+        z-index: 9999 !important;
+        background: #FFFFFF !important;
+        padding: 12px 14px !important;
+        border-radius: 14px !important;
+        border: 2px solid #3B82F6 !important;
+        box-shadow: 0 8px 18px rgba(0,0,0,0.15) !important;
+        margin-bottom: 20px !important;
+    }
+
+    /* 分類大膠囊按鈕：超大觸控面積、不擠壓、字體加粗 */
+    div.category-sticky-wrap div[data-testid="stRadio"] > div[role="radiogroup"] {
+        display: flex !important;
+        flex-wrap: wrap !important;
+        gap: 12px !important;
+    }
+    div.category-sticky-wrap div[data-testid="stRadio"] > div[role="radiogroup"] > label {
+        background-color: #F8FAFC !important;
+        border: 2px solid #94A3B8 !important;
+        border-radius: 14px !important;
+        padding: 12px 24px !important;
+        min-height: 60px !important;
+        display: flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+        font-size: 24px !important;
+        font-weight: 900 !important;
+        color: #1E293B !important;
+        cursor: pointer !important;
+    }
+    div.category-sticky-wrap div[data-testid="stRadio"] > div[role="radiogroup"] > label:hover {
+        border-color: #2563EB !important;
+        background-color: #EFF6FF !important;
+    }
+
     /* 姓名大按鈕 */
     .user-btn button {
         width: 100% !important; min-height: 85px !important;
@@ -39,45 +84,6 @@ st.markdown("""
     }
     .store-btn button:hover {
         background-color: #FDE68A !important; border-color: #D97706 !important;
-    }
-
-    /* 置頂吸附分類導航列 (Sticky Header) */
-    .sticky-category-bar {
-        position: -webkit-sticky;
-        position: sticky;
-        top: 0;
-        z-index: 999;
-        background-color: #F8FAFC;
-        padding: 14px 10px;
-        margin-bottom: 18px;
-        border-bottom: 3px solid #3B82F6;
-        border-radius: 0 0 16px 16px;
-        box-shadow: 0 6px 12px rgba(0,0,0,0.08);
-    }
-
-    /* 分類大按鈕：加大字體、間距與點擊範圍 */
-    div[data-testid="stRadio"] > div[role="radiogroup"] {
-        display: flex;
-        flex-wrap: wrap;
-        gap: 12px;
-    }
-    div[data-testid="stRadio"] > div[role="radiogroup"] > label {
-        background-color: #FFFFFF;
-        border: 2px solid #94A3B8;
-        border-radius: 14px;
-        padding: 12px 24px !important;
-        min-height: 64px !important;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        font-size: 24px !important;
-        font-weight: 900 !important;
-        box-shadow: 0 2px 4px rgba(0,0,0,0.05);
-        cursor: pointer;
-    }
-    div[data-testid="stRadio"] > div[role="radiogroup"] > label:hover {
-        border-color: #2563EB;
-        background-color: #EFF6FF;
     }
 
     /* 餐點大圖卡 */
@@ -146,7 +152,7 @@ st.markdown("""
     .scroll-top-btn:hover { background-color: #0369A1; }
 
     .float-top-btn {
-        position: fixed; bottom: 25px; right: 25px; z-index: 9999;
+        position: fixed; bottom: 25px; right: 25px; z-index: 99999;
         background-color: #0284C7; color: white !important;
         width: 65px; height: 65px; border-radius: 50%;
         display: flex; align-items: center; justify-content: center;
@@ -170,7 +176,6 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# 頂部錨點與全螢幕懸浮置頂按鈕
 st.markdown('<div id="top_anchor"></div>', unsafe_allow_html=True)
 st.markdown('<a href="#top_anchor" class="float-top-btn" title="回頂部">⬆️</a>', unsafe_allow_html=True)
 
@@ -327,7 +332,7 @@ tab1, tab2, tab3, tab4 = st.tabs([
 ])
 
 # -------------------------------------------------------------
-# 分頁 1：友善大圖點餐（隨螢幕下滑置頂吸附的分類導航列）
+# 分頁 1：友善大圖點餐
 # -------------------------------------------------------------
 with tab1:
     today_str = str(date.today())
@@ -535,12 +540,12 @@ with tab1:
             available_categories.extend(raw_cats)
 
         # -------------------------------------------------------------
-        # 隨著頁面下滑吸附置頂的分類選單 (Sticky Header + 大膠囊鍵)
+        # 置頂吸附容器 (Sticky Header 包裝外層)
         # -------------------------------------------------------------
-        st.markdown('<div class="sticky-category-bar">', unsafe_allow_html=True)
-        st.markdown(f"**📌 請選擇餐點分類（自動吸附置頂）：**")
+        st.markdown('<div class="category-sticky-wrap">', unsafe_allow_html=True)
+        st.markdown("<div style='font-size:22px; font-weight:bold; color:#1E3A8A; margin-bottom:8px;'>📌 餐點類別切換（隨頁面浮動置頂）：</div>", unsafe_allow_html=True)
         cat_choice = st.radio(
-            label="餐點分類選單",
+            label="餐點分類切換",
             options=available_categories,
             horizontal=True,
             index=available_categories.index(st.session_state.selected_category) if st.session_state.selected_category in available_categories else 0,
@@ -671,7 +676,6 @@ with tab1:
                         st.markdown('</div>', unsafe_allow_html=True)
                         st.write("---")
 
-        # 底部大按鈕：返回最頂端
         st.markdown('<a href="#top_anchor" class="scroll-top-btn">⬆️ 返回最頂端（查看購物車／重選店家）</a>', unsafe_allow_html=True)
 
 # -------------------------------------------------------------
