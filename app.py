@@ -12,39 +12,63 @@ APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbw0UEIp80umbupbDQkMQA
 SHEET_ID = "1mHnXoG-Duq45EvwZTRVuq86rsK8T5DA9NkLnOi30wuM"
 ORDERS_GID = "1002"
 
+# 注入大按鈕、高對比觸控樣式
 st.markdown("""
 <style>
     html, body, [class*="css"] { font-size: 20px; }
+    
+    /* 姓名大按鈕 */
     .user-btn button {
-        width: 100% !important; min-height: 80px !important;
-        font-size: 24px !important; font-weight: bold !important;
-        border-radius: 14px !important; margin-bottom: 12px !important;
+        width: 100% !important; min-height: 85px !important;
+        font-size: 26px !important; font-weight: bold !important;
+        border-radius: 16px !important; margin-bottom: 12px !important;
         border: 2px solid #CBD5E1 !important;
+        background-color: #FFFFFF !important;
+        box-shadow: 0 3px 6px rgba(0,0,0,0.05) !important;
     }
     .user-btn button:hover { border-color: #2563EB !important; background-color: #EFF6FF !important; }
+    
+    /* 店家大按鈕 */
     .store-btn button {
-        width: 100% !important; min-height: 90px !important;
-        font-size: 26px !important; font-weight: 900 !important;
-        border-radius: 16px !important; margin-bottom: 14px !important;
+        width: 100% !important; min-height: 95px !important;
+        font-size: 28px !important; font-weight: 900 !important;
+        border-radius: 18px !important; margin-bottom: 14px !important;
         background-color: #FEF3C7 !important; color: #92400E !important;
         border: 2px solid #F59E0B !important;
-        box-shadow: 0 3px 6px rgba(0,0,0,0.06) !important;
+        box-shadow: 0 4px 6px rgba(0,0,0,0.08) !important;
     }
     .store-btn button:hover {
         background-color: #FDE68A !important; border-color: #D97706 !important;
     }
+    
+    /* 餐點大圖卡 */
     .food-card {
-        background-color: #FFFFFF; border: 2px solid #E2E8F0;
-        border-radius: 16px; padding: 16px; margin-bottom: 16px;
-        box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+        background-color: #FFFFFF; border: 2px solid #CBD5E1;
+        border-radius: 18px; padding: 18px; margin-bottom: 18px;
+        box-shadow: 0 3px 8px rgba(0,0,0,0.06);
     }
+    
+    /* 數量加大計數按鈕 (+/-) */
+    .qty-control button {
+        font-size: 26px !important; font-weight: 900 !important;
+        min-height: 52px !important; width: 100% !important;
+        border-radius: 12px !important; border: 2px solid #94A3B8 !important;
+    }
+    .qty-display {
+        font-size: 26px; font-weight: 900; color: #1E293B;
+        text-align: center; line-height: 52px;
+        background-color: #F8FAFC; border-radius: 10px;
+        border: 1px solid #E2E8F0;
+    }
+    
+    /* 購物車與預算欄 */
     .cart-item {
-        background-color: #F8FAFC; border-left: 6px solid #2563EB;
-        padding: 12px 18px; border-radius: 8px; margin-bottom: 10px; font-size: 20px;
+        background-color: #F8FAFC; border-left: 8px solid #2563EB;
+        padding: 14px 18px; border-radius: 10px; margin-bottom: 10px; font-size: 22px;
     }
     .budget-banner {
-        background-color: #EFF6FF; border: 2px solid #3B82F6;
-        border-radius: 14px; padding: 16px 20px; font-size: 24px;
+        background-color: #EFF6FF; border: 2.5px solid #3B82F6;
+        border-radius: 16px; padding: 16px 22px; font-size: 24px;
         font-weight: bold; color: #1E3A8A; margin-bottom: 20px;
     }
     .over-limit-box {
@@ -58,7 +82,6 @@ st.markdown("""
         border-radius: 18px; padding: 26px; font-size: 32px;
         font-weight: bold; color: #03543F; text-align: center;
         margin-top: 15px; margin-bottom: 25px;
-        box-shadow: 0 4px 6px rgba(0,0,0,0.05);
     }
     .big-next-btn button {
         width: 100% !important; min-height: 90px !important;
@@ -67,10 +90,15 @@ st.markdown("""
         color: white !important; box-shadow: 0 4px 6px rgba(0,0,0,0.1) !important;
     }
     .big-next-btn button:hover { background-color: #DC2626 !important; }
-    .order-row-card {
-        background-color: #FFFFFF; border: 1.5px solid #E2E8F0;
-        border-radius: 12px; padding: 14px 18px; margin-bottom: 12px;
+    
+    /* 點餐清單大按鈕 */
+    .add-cart-btn button {
+        width: 100% !important; min-height: 62px !important;
+        font-size: 22px !important; font-weight: bold !important;
+        border-radius: 14px !important;
     }
+
+    /* 台灣貨幣實體排隊陳列 */
     .money-visual-board {
         background-color: #FFFFFF; border: 3px dashed #60A5FA;
         border-radius: 16px; padding: 20px; margin-top: 14px; margin-bottom: 14px;
@@ -121,10 +149,8 @@ def load_menu():
         url = f"https://docs.google.com/spreadsheets/d/{SHEET_ID}/gviz/tq?tqx=out:csv&sheet=menu&_t={t}"
         df = pd.read_csv(url)
         df.columns = [str(c).strip() for c in df.columns]
-        
         if "種類選擇" in df.columns and "麵類選擇" not in df.columns:
             df.rename(columns={"種類選擇": "麵類選擇"}, inplace=True)
-            
         return df.dropna(subset=["餐點名稱"]) if "餐點名稱" in df.columns else df
     except:
         return pd.DataFrame()
@@ -203,6 +229,8 @@ if "last_paid_amount" not in st.session_state:
     st.session_state.last_paid_amount = 0
 if "edit_order_id" not in st.session_state:
     st.session_state.edit_order_id = None
+if "item_qty" not in st.session_state:
+    st.session_state.item_qty = {}
 
 df_menu = load_menu()
 df_users = load_users()
@@ -217,17 +245,18 @@ tab1, tab2, tab3, tab4 = st.tabs([
 ])
 
 # -------------------------------------------------------------
-# 分頁 1：友善大圖點餐（加入數量選項）
+# 分頁 1：友善大圖點餐（直覺觸控優化）
 # -------------------------------------------------------------
 with tab1:
     today_str = str(date.today())
     
+    # 點餐完成畫面
     if st.session_state.order_finished:
         pay_amount = st.session_state.last_paid_amount
         st.markdown(f"""
         <div class="big-pay-box">
             🎉 已完成訂單！<br>
-            請準備 <span style="color: #DC2626; font-size: 44px; font-weight: 900;">${fmt_price(pay_amount)}</span> 元付款
+            請準備 <span style="color: #DC2626; font-size: 48px; font-weight: 900;">${fmt_price(pay_amount)}</span> 元付款
         </div>
         """, unsafe_allow_html=True)
         
@@ -239,9 +268,11 @@ with tab1:
             st.session_state.cart = []
             st.session_state.last_paid_amount = 0
             st.session_state.order_finished = False
+            st.session_state.item_qty = {}
             st.rerun()
         st.markdown('</div>', unsafe_allow_html=True)
 
+    # 第一步：選擇姓名
     elif st.session_state.selected_user is None:
         st.subheader("👉 第一步：請問你是誰？（點你的名字）")
         if df_users.empty or "姓名" not in df_users.columns:
@@ -261,9 +292,11 @@ with tab1:
                         st.session_state.selected_store = None
                         st.session_state.user_limit = lim_val
                         st.session_state.cart = []
+                        st.session_state.item_qty = {}
                         st.rerun()
                     st.markdown('</div>', unsafe_allow_html=True)
 
+    # 第二步：選擇店家
     elif st.session_state.selected_store is None:
         u_name = st.session_state.selected_user
         u_limit = st.session_state.user_limit
@@ -291,6 +324,7 @@ with tab1:
                 st.session_state.selected_store = None
                 st.session_state.user_limit = 0
                 st.session_state.cart = []
+                st.session_state.item_qty = {}
                 st.rerun()
             st.markdown('</div>', unsafe_allow_html=True)
 
@@ -307,6 +341,7 @@ with tab1:
                     st.session_state.selected_user = None
                     st.session_state.selected_store = None
                     st.session_state.cart = []
+                    st.session_state.item_qty = {}
                     st.rerun()
 
             if "店家名稱" in df_menu.columns:
@@ -323,9 +358,11 @@ with tab1:
                     st.markdown('<div class="store-btn">', unsafe_allow_html=True)
                     if st.button(f"🏪 {store_name}", key=f"sel_store_{s_idx}"):
                         st.session_state.selected_store = store_name
+                        st.session_state.item_qty = {}
                         st.rerun()
                     st.markdown('</div>', unsafe_allow_html=True)
 
+    # 第三步：挑選該店家的餐點品項
     else:
         u_name = st.session_state.selected_user
         current_store = st.session_state.selected_store
@@ -357,6 +394,7 @@ with tab1:
                 if st.button("⬅️ 重選店家"):
                     st.session_state.selected_store = None
                     st.session_state.cart = []
+                    st.session_state.item_qty = {}
                     st.rerun()
 
             if st.session_state.cart:
@@ -366,7 +404,7 @@ with tab1:
                         qty_str = f" x <b>{c_item['qty']}</b>" if c_item['qty'] > 1 else ""
                         st.markdown(f"""
                         <div class="cart-item">
-                            🍲 <b>{c_item['item']}</b>{qty_str} ｜ 種類：<b>{c_item['noodle']}</b> ｜ 份量：<b>{c_item['extra']}</b> ｜ 金額：<b style="color:#DC2626;">${fmt_price(c_item['subtotal'])} 元</b>
+                            🍲 <b>{c_item['item']}</b>{qty_str} ｜ 種類/份量：<b>{c_item['noodle']}</b> ｜ 加麵：<b>{c_item['extra']}</b> ｜ 金額：<b style="color:#DC2626;">${fmt_price(c_item['subtotal'])} 元</b>
                         </div>
                         """, unsafe_allow_html=True)
                     with cc2:
@@ -435,6 +473,7 @@ with tab1:
             cols = st.columns(2)
             for idx, (m_row, base_p) in enumerate(displayed_items):
                 item_name = m_row["餐點名稱"]
+                category = str(m_row.get("分類", ""))
                 
                 raw_options = ""
                 if "種類選擇" in m_row:
@@ -442,54 +481,105 @@ with tab1:
                 elif "麵類選擇" in m_row:
                     raw_options = str(m_row["麵類選擇"]).strip()
 
+                is_soup = "湯" in item_name or "湯" in category or any(x in raw_options for x in ["小", "中", "大"])
+
                 if raw_options and raw_options not in ["-", "nan", "無", "固定"]:
                     type_options = [opt.strip() for opt in re.split(r"[/,、|]+", raw_options) if opt.strip()]
+                elif is_soup:
+                    type_options = ["小", "中 (+10元)", "大 (+20元)"]
                 else:
                     type_options = ["標準配置"]
 
                 is_liumei = "劉妹" in str(current_store)
+                select_label = "尺寸" if is_soup else "種類"
                 
+                # 初始化目前品項數量
+                qty_key = f"qty_val_{idx}_{item_name}"
+                if qty_key not in st.session_state:
+                    st.session_state[qty_key] = 1
+
                 with cols[idx % 2]:
                     with st.container():
                         st.markdown(f"""
                         <div class="food-card">
-                            <h3 style="margin-top:0; color:#1E293B;">🍲 {item_name}</h3>
-                            <div style="font-size:20px; color:#475569; margin-bottom:8px;">基本單價：<b style="color:#059669;">${fmt_price(base_p)} 元</b></div>
+                            <h3 style="margin-top:0; margin-bottom:6px; color:#1E293B;">🍲 {item_name}</h3>
+                            <div style="font-size:20px; color:#475569; margin-bottom:12px;">單價：<b style="color:#059669; font-size:24px;">${fmt_price(base_p)} 元</b></div>
                         </div>
                         """, unsafe_allow_html=True)
                         
-                        # 第一排：種類選擇 + 數量點選
-                        c_nd, c_qty = st.columns([3, 2])
-                        with c_nd:
-                            nd_choice = st.selectbox("種類選擇", type_options, key=f"nd_{idx}_{item_name}")
-                        with c_qty:
-                            qty_choice = st.number_input("數量", min_value=1, max_value=30, value=1, step=1, key=f"qty_{idx}_{item_name}")
+                        # -------------------------------------------------------------
+                        # 種類/尺寸大按鈕（橫排單選 Pill Buttons）
+                        # -------------------------------------------------------------
+                        st.write(f"**👉 選擇{select_label}：**")
+                        nd_choice = st.radio(
+                            label=f"選擇{select_label}",
+                            options=type_options,
+                            key=f"nd_{idx}_{item_name}",
+                            horizontal=True,
+                            label_visibility="collapsed"
+                        )
 
-                        # 第二排：若為劉妹則顯示加麵
+                        # -------------------------------------------------------------
+                        # 加大觸控 +/- 計數器
+                        # -------------------------------------------------------------
+                        st.write("**👉 選擇數量：**")
+                        c_minus, c_num, c_plus = st.columns([1, 2, 1])
+                        with c_minus:
+                            st.markdown('<div class="qty-control">', unsafe_allow_html=True)
+                            if st.button("➖", key=f"btn_minus_{idx}_{item_name}"):
+                                if st.session_state[qty_key] > 1:
+                                    st.session_state[qty_key] -= 1
+                                    st.rerun()
+                            st.markdown('</div>', unsafe_allow_html=True)
+                            
+                        with c_num:
+                            st.markdown(f'<div class="qty-display">{st.session_state[qty_key]} 份</div>', unsafe_allow_html=True)
+                            
+                        with c_plus:
+                            st.markdown('<div class="qty-control">', unsafe_allow_html=True)
+                            if st.button("➕", key=f"btn_plus_{idx}_{item_name}"):
+                                if st.session_state[qty_key] < 30:
+                                    st.session_state[qty_key] += 1
+                                    st.rerun()
+                            st.markdown('</div>', unsafe_allow_html=True)
+
+                        # 若為劉妹則顯示加麵橫向按鈕
                         if is_liumei:
-                            ex_choice = st.radio("份量", ["不加麵", "要加麵 (+15元)"], horizontal=True, key=f"ex_{idx}_{item_name}")
+                            st.write("**👉 份量：**")
+                            ex_choice = st.radio(
+                                label="份量加麵",
+                                options=["不加麵", "要加麵 (+15元)"],
+                                horizontal=True,
+                                key=f"ex_{idx}_{item_name}",
+                                label_visibility="collapsed"
+                            )
                         else:
                             ex_choice = "不加麵"
 
-                        # 單價與小計計算
+                        cur_qty = st.session_state[qty_key]
                         extra_nd = parse_extra_price(nd_choice)
                         extra_ex = 15 if ex_choice == "要加麵 (+15元)" else 0
                         single_unit_price = round(base_p + extra_nd + extra_ex, 2)
-                        total_item_price = round(single_unit_price * qty_choice, 2)
+                        total_item_price = round(single_unit_price * cur_qty, 2)
 
                         can_add = (u_limit == 0) or (total_item_price <= remaining_daily_budget)
-                        btn_txt = f"➕ 加入清單 ({qty_choice}份，合計 ${fmt_price(total_item_price)} 元)" if can_add else f"❌ 超出今日限額 (${fmt_price(total_item_price)} 元)"
+                        btn_txt = f"➕ 加入點餐 ({cur_qty}份，共 ${fmt_price(total_item_price)} 元)" if can_add else f"❌ 超出今日限額 (${fmt_price(total_item_price)} 元)"
 
-                        if st.button(btn_txt, key=f"add_btn_{idx}_{item_name}", disabled=not can_add):
+                        st.write("")
+                        st.markdown('<div class="add-cart-btn">', unsafe_allow_html=True)
+                        if st.button(btn_txt, key=f"add_btn_{idx}_{item_name}", disabled=not can_add, type="primary" if can_add else "secondary"):
                             st.session_state.cart.append({
                                 "item": item_name,
                                 "unit_price": single_unit_price,
-                                "qty": int(qty_choice),
+                                "qty": cur_qty,
                                 "noodle": nd_choice,
                                 "extra": ex_choice,
                                 "subtotal": total_item_price
                             })
+                            st.session_state[qty_key] = 1  # 加入後重置數量為 1
                             st.rerun()
+                        st.markdown('</div>', unsafe_allow_html=True)
+                        st.write("---")
 
 # -------------------------------------------------------------
 # 分頁 2：明細與對帳
@@ -738,7 +828,7 @@ with tab2:
 # -------------------------------------------------------------
 with tab3:
     st.subheader("⚙️ 菜單品項維護")
-    st.caption("💡 提示：在【種類選擇】欄位中填寫該餐點可選的種類（以斜線 / 隔開，如：燴飯/燴麵 或 意麵/冬粉/泡飯），點餐時就會自動拆解成專屬選單！單價支援小數點（如 7.5）。")
+    st.caption("💡 提示：在【種類選擇】欄位中填寫該餐點可選的種類（以斜線 / 隔開，如：大/中/小 或 燴飯/燴麵）。")
     if not df_menu.empty:
         st.dataframe(df_menu, use_container_width=True)
     else:
