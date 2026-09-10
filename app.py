@@ -64,7 +64,6 @@ st.markdown("""
         overflow: visible !important;
     }
 
-    /* 純文字無底色步驟標題 */
     .step-title {
         color: #1E293B !important;
         font-size: 32px !important;
@@ -76,7 +75,6 @@ st.markdown("""
         line-height: 1.3 !important;
     }
 
-    /* 人員選擇按鈕 (色彩立體加強) */
     .user-btn button {
         width: 100% !important; min-height: 105px !important;
         font-size: 30px !important; font-weight: 900 !important;
@@ -94,7 +92,6 @@ st.markdown("""
         box-shadow: 0 7px 16px rgba(22,163,74,0.25) !important;
     }
 
-    /* 店家選擇按鈕 (溫暖琥珀金色彩) */
     .store-btn button {
         width: 100% !important; min-height: 115px !important;
         font-size: 30px !important; font-weight: 900 !important;
@@ -112,7 +109,6 @@ st.markdown("""
         box-shadow: 0 8px 18px rgba(217,119,6,0.28) !important;
     }
 
-    /* 頂部吸附容器 (背景純白陰影) */
     div.category-sticky-wrap {
         position: -webkit-sticky !important;
         position: sticky !important;
@@ -126,7 +122,6 @@ st.markdown("""
         margin-bottom: 22px !important;
     }
 
-    /* 特大號餐點類別按鈕：超大觸控面積、大字體、好點按 */
     div.category-sticky-wrap div[data-testid="stRadio"] > div[role="radiogroup"] {
         display: flex !important;
         flex-wrap: wrap !important;
@@ -161,14 +156,12 @@ st.markdown("""
         box-shadow: 0 5px 14px rgba(37,99,235,0.35) !important;
     }
 
-    /* 餐點卡片 */
     .food-card {
         background-color: #FFFFFF; border: 2.5px solid #E2E8F0;
         border-radius: 20px; padding: 20px; margin-bottom: 20px;
         box-shadow: 0 4px 10px rgba(0,0,0,0.06);
     }
     
-    /* 特大號數量 +/- 按鈕色彩 */
     .qty-control button {
         font-size: 32px !important; font-weight: 900 !important;
         min-height: 60px !important; width: 100% !important;
@@ -187,7 +180,6 @@ st.markdown("""
         border: 2px solid #CBD5E1;
     }
     
-    /* 特大號加入購物車按鈕 (鮮綠底白字) */
     .add-cart-btn button {
         width: 100% !important; min-height: 72px !important;
         font-size: 26px !important; font-weight: 900 !important;
@@ -201,7 +193,6 @@ st.markdown("""
         background-color: #059669 !important;
     }
 
-    /* 預算資訊標記 */
     .budget-tag {
         font-size: 24px; font-weight: bold; color: #334155;
         margin-bottom: 18px; padding: 12px 16px;
@@ -330,27 +321,37 @@ def load_orders_from_sheet():
     url = f"https://docs.google.com/spreadsheets/d/{SHEET_ID}/export?format=csv&gid={ORDERS_GID}&_t={t}"
     try:
         raw_df = pd.read_csv(url, header=None)
-        h_idx = 3
+        
+        h_idx = None
         for i in range(min(10, len(raw_df))):
             row_vals = [str(x).strip() for x in raw_df.iloc[i].tolist()]
             if any("訂單編號" in v or "員工姓名" in v for v in row_vals):
                 h_idx = i
                 break
         
-        df = pd.read_csv(url, header=h_idx)
-        df.columns = [str(c).strip() for c in df.columns]
-
-        for col in df.columns:
-            if "日期" in col and "訂購日期" not in df.columns:
-                df.rename(columns={col: "訂購日期"}, inplace=True)
-            elif "姓名" in col and "員工姓名" not in df.columns:
-                df.rename(columns={col: "員工姓名"}, inplace=True)
-            elif "小計" in col and "小計金額" not in df.columns:
-                df.rename(columns={col: "小計金額"}, inplace=True)
-            elif "狀態" in col and "付款狀態" not in df.columns:
-                df.rename(columns={col: "付款狀態"}, inplace=True)
-            elif "種類" in col and "麵類選擇" not in df.columns:
-                df.rename(columns={col: "麵類選擇"}, inplace=True)
+        if h_idx is not None:
+            df = pd.read_csv(url, header=h_idx)
+            df.columns = [str(c).strip() for c in df.columns]
+            for col in df.columns:
+                if "日期" in col and "訂購日期" not in df.columns:
+                    df.rename(columns={col: "訂購日期"}, inplace=True)
+                elif "姓名" in col and "員工姓名" not in df.columns:
+                    df.rename(columns={col: "員工姓名"}, inplace=True)
+                elif "小計" in col and "小計金額" not in df.columns:
+                    df.rename(columns={col: "小計金額"}, inplace=True)
+                elif "狀態" in col and "付款狀態" not in df.columns:
+                    df.rename(columns={col: "付款狀態"}, inplace=True)
+                elif "種類" in col and "麵類選擇" not in df.columns:
+                    df.rename(columns={col: "麵類選擇"}, inplace=True)
+        else:
+            data_rows = raw_df.iloc[2:].copy()
+            std_cols = REQUIRED_ORDER_COLS
+            df = pd.DataFrame(columns=std_cols)
+            for idx, col_name in enumerate(std_cols):
+                if idx < data_rows.shape[1]:
+                    df[col_name] = data_rows.iloc[:, idx].values
+                else:
+                    df[col_name] = ""
 
         for req in REQUIRED_ORDER_COLS:
             if req not in df.columns:
@@ -358,11 +359,13 @@ def load_orders_from_sheet():
 
         if "員工姓名" in df.columns:
             df = df.dropna(subset=["員工姓名"])
-            df = df[~df["員工姓名"].astype(str).str.contains("總計|合計", na=False)]
+            df = df[~df["員工姓名"].astype(str).str.contains("總計|合計|今日訂單|員工姓名", na=False)]
             df = df[df["員工姓名"].astype(str).str.strip() != ""]
             df = df[df["員工姓名"].astype(str).str.strip() != "nan"]
-        return df
-    except:
+        
+        df = df[df["訂單編號"].astype(str).str.strip() != "訂單編號"]
+        return df.reset_index(drop=True)
+    except Exception as e:
         return pd.DataFrame(columns=REQUIRED_ORDER_COLS)
 
 def sync_to_google_sheet(payload):
@@ -403,8 +406,8 @@ if "order_finished" not in st.session_state:
     st.session_state.order_finished = False
 if "last_paid_amount" not in st.session_state:
     st.session_state.last_paid_amount = 0
-if "edit_order_id" not in st.session_state:
-    st.session_state.edit_order_id = None
+if "edit_row_idx" not in st.session_state:
+    st.session_state.edit_row_idx = None
 
 df_menu = load_menu()
 df_users = load_users()
@@ -439,7 +442,6 @@ with tab1:
             st.rerun()
         st.markdown('</div>', unsafe_allow_html=True)
 
-    # 第一步：選擇姓名
     elif st.session_state.selected_user is None:
         st.markdown('<div class="step-title">請問你是誰？（點選名字按鈕）</div>', unsafe_allow_html=True)
         if df_users.empty or "姓名" not in df_users.columns:
@@ -463,7 +465,6 @@ with tab1:
                         st.rerun()
                     st.markdown('</div>', unsafe_allow_html=True)
 
-    # 第二步：選擇店家
     elif st.session_state.selected_store is None:
         u_name = st.session_state.selected_user
         u_limit = st.session_state.user_limit
@@ -525,7 +526,6 @@ with tab1:
                         st.rerun()
                     st.markdown('</div>', unsafe_allow_html=True)
 
-    # 第三步：挑選餐點
     else:
         u_name = st.session_state.selected_user
         current_store = st.session_state.selected_store
@@ -629,10 +629,8 @@ with tab1:
             raw_cats = [str(c).strip() for c in store_menu["分類"].dropna().unique().tolist() if str(c).strip() not in ["", "nan"]]
             available_categories.extend(raw_cats)
 
-        # 修改後文字：你今天想吃什麼?
         st.markdown('<div class="step-title">你今天想吃什麼？</div>', unsafe_allow_html=True)
         
-        # 吸附置頂的分類選單 (按鈕特大化)
         st.markdown('<div class="category-sticky-wrap">', unsafe_allow_html=True)
         visual_options = [get_category_visual(c) for c in available_categories]
         cur_visual = get_category_visual(st.session_state.selected_category)
@@ -916,18 +914,18 @@ with tab2:
 
             st.write("---")
             
-            if st.session_state.edit_order_id is not None:
-                e_id = st.session_state.edit_order_id
-                matched_rows = st.session_state.orders_data[st.session_state.orders_data["訂單編號"] == e_id]
-                if not matched_rows.empty:
-                    orig = matched_rows.iloc[0]
+            # 依行數 (row_idx) 作為唯一修改目標
+            if st.session_state.edit_row_idx is not None:
+                e_idx = st.session_state.edit_row_idx
+                if e_idx in st.session_state.orders_data.index:
+                    orig = st.session_state.orders_data.loc[e_idx]
                     with st.form("edit_single_order_form"):
-                        st.subheader(f"✏️ 編輯訂單：【{e_id}】")
+                        st.subheader(f"✏️ 編輯訂單：【第 {e_idx + 1} 筆 - {orig.get('訂單編號', '')}】")
                         ed_c1, ed_c2 = st.columns(2)
                         with ed_c1:
                             new_name = st.text_input("同仁姓名", value=str(orig.get("員工姓名", "")))
                             new_item = st.text_input("餐點品項", value=str(orig.get("餐點品項", "")))
-                            new_qty = st.number_input("數量", min_value=1, value=int(orig.get("數量", 1)), step=1)
+                            new_qty = st.number_input("數量", min_value=1, value=int(parse_price(orig.get("數量", 1)) or 1), step=1)
                             new_price = st.number_input("小計金額 (元)", min_value=0.0, value=float(parse_price(orig.get("小計金額", 0))), step=0.5)
                         with ed_c2:
                             new_noodle = st.text_input("種類 / 麵類選擇", value=str(orig.get("麵類選擇", "標準配置")))
@@ -939,14 +937,13 @@ with tab2:
                         btn_sub1, btn_sub2 = st.columns(2)
                         with btn_sub1:
                             if st.form_submit_button("💾 儲存修改", type="primary", use_container_width=True):
-                                idx = matched_rows.index[0]
-                                st.session_state.orders_data.loc[idx, "員工姓名"] = new_name
-                                st.session_state.orders_data.loc[idx, "餐點品項"] = new_item
-                                st.session_state.orders_data.loc[idx, "數量"] = new_qty
-                                st.session_state.orders_data.loc[idx, "麵類選擇"] = new_noodle
-                                st.session_state.orders_data.loc[idx, "是否加麵"] = new_extra
-                                st.session_state.orders_data.loc[idx, "小計金額"] = f"${fmt_price(new_price)}"
-                                st.session_state.orders_data.loc[idx, "付款狀態"] = new_status
+                                st.session_state.orders_data.loc[e_idx, "員工姓名"] = new_name
+                                st.session_state.orders_data.loc[e_idx, "餐點品項"] = new_item
+                                st.session_state.orders_data.loc[e_idx, "數量"] = new_qty
+                                st.session_state.orders_data.loc[e_idx, "麵類選擇"] = new_noodle
+                                st.session_state.orders_data.loc[e_idx, "是否加麵"] = new_extra
+                                st.session_state.orders_data.loc[e_idx, "小計金額"] = f"${fmt_price(new_price)}"
+                                st.session_state.orders_data.loc[e_idx, "付款狀態"] = new_status
                                 
                                 sync_to_google_sheet({
                                     "action": "update_status",
@@ -954,12 +951,12 @@ with tab2:
                                     "user": new_name,
                                     "status": new_status
                                 })
-                                st.session_state.edit_order_id = None
+                                st.session_state.edit_row_idx = None
                                 st.success("訂單修改完成！")
                                 st.rerun()
                         with btn_sub2:
                             if st.form_submit_button("❌ 取消編輯", use_container_width=True):
-                                st.session_state.edit_order_id = None
+                                st.session_state.edit_row_idx = None
                                 st.rerun()
 
             st.markdown("#### 📋 點單明細清單（可直接修改與切換狀態）：")
@@ -980,7 +977,7 @@ with tab2:
                     with r_c5:
                         cur_status = row_data.get("付款狀態", "未付款")
                         if cur_status == "已付款":
-                            if st.button("🟢 已付 (改未付)", key=f"status_btn_{row_idx}"):
+                            if st.button("🟢 已付 (改未付)", key=f"status_btn_{row_idx}_{ord_id}"):
                                 st.session_state.orders_data.loc[row_idx, "付款狀態"] = "未付款"
                                 sync_to_google_sheet({
                                     "action": "update_status",
@@ -990,7 +987,7 @@ with tab2:
                                 })
                                 st.rerun()
                         else:
-                            if st.button("🔴 未付 (改已付)", key=f"status_btn_{row_idx}"):
+                            if st.button("🔴 未付 (改已付)", key=f"status_btn_{row_idx}_{ord_id}"):
                                 st.session_state.orders_data.loc[row_idx, "付款狀態"] = "已付款"
                                 sync_to_google_sheet({
                                     "action": "update_status",
@@ -1002,11 +999,11 @@ with tab2:
                     with r_c6:
                         c_ed1, c_ed2 = st.columns(2)
                         with c_ed1:
-                            if st.button("✏️", key=f"btn_edit_{ord_id}", help="編輯此筆訂單"):
-                                st.session_state.edit_order_id = ord_id
+                            if st.button("✏️", key=f"btn_edit_{row_idx}_{ord_id}", help="編輯此筆訂單"):
+                                st.session_state.edit_row_idx = row_idx
                                 st.rerun()
                         with c_ed2:
-                            if st.button("🗑️", key=f"btn_rm_{ord_id}", help="刪除這筆訂單"):
+                            if st.button("🗑️", key=f"btn_rm_{row_idx}_{ord_id}", help="刪除這筆訂單"):
                                 st.session_state.orders_data.drop(row_idx, inplace=True)
                                 st.session_state.orders_data.reset_index(drop=True, inplace=True)
                                 st.rerun()
