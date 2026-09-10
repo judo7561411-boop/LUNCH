@@ -13,6 +13,50 @@ APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbw0UEIp80umbupbDQkMQA
 SHEET_ID = "1mHnXoG-Duq45EvwZTRVuq86rsK8T5DA9NkLnOi30wuM"
 ORDERS_GID = "1002"
 
+# 智能障礙友善圖樣辨識函數
+def get_category_visual(cat_name):
+    cat_str = str(cat_name).strip()
+    if "全部" in cat_str:
+        return f"🍽️ {cat_str}"
+    elif "便當" in cat_str:
+        return f"🍱 {cat_str}"
+    elif "水餃" in cat_str:
+        return f"🥟 {cat_str}"
+    elif "鍋貼" in cat_str:
+        return f"🥟🔥 {cat_str}"
+    elif "湯" in cat_str:
+        return f"🥣 {cat_str}"
+    elif "燴飯" in cat_str or "飯" in cat_str:
+        return f"🍚 {cat_str}"
+    elif "麵" in cat_str or "冬粉" in cat_str:
+        return f"🍜 {cat_str}"
+    elif "飲" in cat_str or "茶" in cat_str:
+        return f"🥤 {cat_str}"
+    elif "小菜" in cat_str or "炸" in cat_str or "切" in cat_str:
+        return f"🥗 {cat_str}"
+    elif "雲吞" in cat_str or "抄手" in cat_str:
+        return f"🍲 {cat_str}"
+    else:
+        return f"🍴 {cat_str}"
+
+# 店家圖樣與專屬顏色標籤辨識
+def get_store_visual(store_name):
+    s = str(store_name).strip()
+    if "四海遊龍" in s:
+        return "🥟🔥 四海遊龍 (鍋貼・水餃)"
+    elif "春豐" in s or "旺滷肉飯" in s:
+        return "🍱🍖 春豐旺滷肉飯 (便當・招牌飯)"
+    elif "牛媽" in s:
+        return "🍲🍚 牛媽小吃 (燴飯・燴麵)"
+    elif "豆桑" in s:
+        return "🍱🥢 豆桑中式便當 (特餐・飯包)"
+    elif "劉妹" in s:
+        return "🍲🍜 劉妹鍋燒意麵 (萬壽店)"
+    elif "元餃子" in s:
+        return "🥟 元餃子館 (蒸餃・麵食)"
+    else:
+        return f"🏪 {s}"
+
 st.markdown("""
 <style>
     html { scroll-behavior: smooth; }
@@ -21,81 +65,115 @@ st.markdown("""
     section.main > div {
         overflow: visible !important;
     }
-    
+
+    /* 醒目步驟提示條 */
+    .step-banner {
+        background: linear-gradient(90deg, #1E40AF 0%, #3B82F6 100%);
+        color: #FFFFFF !important;
+        font-size: 28px !important;
+        font-weight: 900 !important;
+        padding: 16px 24px !important;
+        border-radius: 16px !important;
+        margin-bottom: 22px !important;
+        box-shadow: 0 4px 10px rgba(37,99,235,0.2) !important;
+        display: flex;
+        align-items: center;
+        gap: 12px;
+    }
+
+    /* 人員大卡片按鈕 (加強立體感與文字對比) */
+    .user-btn button {
+        width: 100% !important; min-height: 100px !important;
+        font-size: 30px !important; font-weight: 900 !important;
+        border-radius: 20px !important; margin-bottom: 16px !important;
+        border: 3.5px solid #3B82F6 !important;
+        background-color: #FFFFFF !important;
+        color: #1E293B !important;
+        box-shadow: 0 6px 14px rgba(0,0,0,0.08) !important;
+        transition: all 0.15s ease-in-out !important;
+    }
+    .user-btn button:hover {
+        border-color: #1D4ED8 !important;
+        background-color: #EFF6FF !important;
+        transform: translateY(-2px);
+        box-shadow: 0 8px 18px rgba(37,99,235,0.18) !important;
+    }
+
+    /* 店家大卡片按鈕 (色彩鮮明活潑) */
+    .store-btn button {
+        width: 100% !important; min-height: 110px !important;
+        font-size: 28px !important; font-weight: 900 !important;
+        border-radius: 20px !important; margin-bottom: 16px !important;
+        background: linear-gradient(135deg, #FFFBEB 0%, #FEF3C7 100%) !important;
+        color: #78350F !important;
+        border: 3.5px solid #F59E0B !important;
+        box-shadow: 0 6px 14px rgba(245,158,11,0.15) !important;
+        transition: all 0.15s ease-in-out !important;
+    }
+    .store-btn button:hover {
+        background: #FDE68A !important;
+        border-color: #D97706 !important;
+        transform: translateY(-2px);
+        box-shadow: 0 8px 20px rgba(217,119,6,0.22) !important;
+    }
+
+    /* 易讀置頂吸附分類導航列 (Sticky Header) */
     div.category-sticky-wrap {
         position: -webkit-sticky !important;
         position: sticky !important;
         top: 50px !important;
         z-index: 9999 !important;
         background: #FFFFFF !important;
-        padding: 12px 14px !important;
-        border-radius: 14px !important;
-        border: 2px solid #3B82F6 !important;
-        box-shadow: 0 8px 18px rgba(0,0,0,0.15) !important;
+        padding: 14px 16px !important;
+        border-radius: 16px !important;
+        border: 3px solid #2563EB !important;
+        box-shadow: 0 8px 20px rgba(0,0,0,0.16) !important;
         margin-bottom: 20px !important;
     }
 
+    /* 圖文易讀超大按鈕 */
     div.category-sticky-wrap div[data-testid="stRadio"] > div[role="radiogroup"] {
         display: flex !important;
         flex-wrap: wrap !important;
-        gap: 12px !important;
+        gap: 14px !important;
     }
     div.category-sticky-wrap div[data-testid="stRadio"] > div[role="radiogroup"] > label {
         background-color: #F8FAFC !important;
-        border: 2px solid #94A3B8 !important;
-        border-radius: 14px !important;
-        padding: 12px 24px !important;
-        min-height: 60px !important;
+        border: 3px solid #64748B !important;
+        border-radius: 16px !important;
+        padding: 14px 26px !important;
+        min-height: 70px !important;
         display: flex !important;
         align-items: center !important;
         justify-content: center !important;
-        font-size: 24px !important;
+        font-size: 26px !important;
         font-weight: 900 !important;
-        color: #1E293B !important;
+        color: #0F172A !important;
+        box-shadow: 0 3px 6px rgba(0,0,0,0.08) !important;
         cursor: pointer !important;
     }
     div.category-sticky-wrap div[data-testid="stRadio"] > div[role="radiogroup"] > label:hover {
         border-color: #2563EB !important;
         background-color: #EFF6FF !important;
-    }
-
-    .user-btn button {
-        width: 100% !important; min-height: 85px !important;
-        font-size: 26px !important; font-weight: bold !important;
-        border-radius: 16px !important; margin-bottom: 12px !important;
-        border: 2px solid #CBD5E1 !important; background-color: #FFFFFF !important;
-        box-shadow: 0 3px 6px rgba(0,0,0,0.05) !important;
-    }
-    .user-btn button:hover { border-color: #2563EB !important; background-color: #EFF6FF !important; }
-    
-    .store-btn button {
-        width: 100% !important; min-height: 95px !important;
-        font-size: 28px !important; font-weight: 900 !important;
-        border-radius: 18px !important; margin-bottom: 14px !important;
-        background-color: #FEF3C7 !important; color: #92400E !important;
-        border: 2px solid #F59E0B !important;
-        box-shadow: 0 4px 6px rgba(0,0,0,0.08) !important;
-    }
-    .store-btn button:hover {
-        background-color: #FDE68A !important; border-color: #D97706 !important;
+        transform: scale(1.02);
     }
 
     .food-card {
-        background-color: #FFFFFF; border: 2px solid #CBD5E1;
+        background-color: #FFFFFF; border: 2.5px solid #CBD5E1;
         border-radius: 18px; padding: 18px; margin-bottom: 18px;
         box-shadow: 0 3px 8px rgba(0,0,0,0.06);
     }
     
     .qty-control button {
-        font-size: 26px !important; font-weight: 900 !important;
-        min-height: 52px !important; width: 100% !important;
-        border-radius: 12px !important; border: 2px solid #94A3B8 !important;
+        font-size: 28px !important; font-weight: 900 !important;
+        min-height: 56px !important; width: 100% !important;
+        border-radius: 14px !important; border: 2px solid #94A3B8 !important;
     }
     .qty-display {
-        font-size: 26px; font-weight: 900; color: #1E293B;
-        text-align: center; line-height: 52px;
-        background-color: #F8FAFC; border-radius: 10px;
-        border: 1px solid #E2E8F0;
+        font-size: 28px; font-weight: 900; color: #1E293B;
+        text-align: center; line-height: 56px;
+        background-color: #F8FAFC; border-radius: 12px;
+        border: 1.5px solid #E2E8F0;
     }
     
     .cart-item {
@@ -103,7 +181,7 @@ st.markdown("""
         padding: 14px 18px; border-radius: 10px; margin-bottom: 10px; font-size: 22px;
     }
     .budget-banner {
-        background-color: #EFF6FF; border: 2.5px solid #3B82F6;
+        background-color: #EFF6FF; border: 3px solid #3B82F6;
         border-radius: 16px; padding: 16px 22px; font-size: 24px;
         font-weight: bold; color: #1E3A8A; margin-bottom: 20px;
     }
@@ -128,8 +206,8 @@ st.markdown("""
     .big-next-btn button:hover { background-color: #DC2626 !important; }
     
     .add-cart-btn button {
-        width: 100% !important; min-height: 62px !important;
-        font-size: 22px !important; font-weight: bold !important;
+        width: 100% !important; min-height: 64px !important;
+        font-size: 24px !important; font-weight: bold !important;
         border-radius: 14px !important;
     }
     
@@ -323,7 +401,7 @@ tab1, tab2, tab3, tab4 = st.tabs([
 ])
 
 # -------------------------------------------------------------
-# 分頁 1：友善大圖點餐
+# 分頁 1：友善大圖點餐（大幅優化按鈕與視覺提示）
 # -------------------------------------------------------------
 with tab1:
     today_str = str(date.today())
@@ -344,9 +422,9 @@ with tab1:
             st.rerun()
         st.markdown('</div>', unsafe_allow_html=True)
 
-    # 第一步：選擇姓名
+    # 第一步：選擇姓名（大字體、立體邊框卡片）
     elif st.session_state.selected_user is None:
-        st.subheader("👉 第一步：請問你是誰？（點你的名字）")
+        st.markdown('<div class="step-banner">👤 第一步：請問你是誰？（點你的名字）</div>', unsafe_allow_html=True)
         if df_users.empty or "姓名" not in df_users.columns:
             st.warning("⚠️ 尚無人員名單，請至【👥 人員名單管理】確認。")
         else:
@@ -355,11 +433,13 @@ with tab1:
                 u_name = str(u_row["姓名"]).strip()
                 raw_lim = u_row.get("金額限制", 0)
                 lim_val = parse_price(raw_lim)
-                lim_badge = f"（限額 ${fmt_price(lim_val)} 元）" if lim_val > 0 else "（不限額）"
+                
+                # 色彩化文字標籤
+                lim_tag = f"💰 限額 ${fmt_price(lim_val)} 元" if lim_val > 0 else "🟢 無限額"
 
                 with cols[idx % 2]:
                     st.markdown('<div class="user-btn">', unsafe_allow_html=True)
-                    if st.button(f"👤 {u_name} {lim_badge}", key=safe_key("sel_u", u_name, idx)):
+                    if st.button(f"👤 {u_name} \n（{lim_tag}）", key=safe_key("sel_u", u_name, idx)):
                         st.session_state.selected_user = u_name
                         st.session_state.selected_store = None
                         st.session_state.selected_category = "全部品項"
@@ -368,7 +448,7 @@ with tab1:
                         st.rerun()
                     st.markdown('</div>', unsafe_allow_html=True)
 
-    # 第二步：選擇店家
+    # 第二步：選擇店家（大圖示與生動標籤）
     elif st.session_state.selected_store is None:
         u_name = st.session_state.selected_user
         u_limit = st.session_state.user_limit
@@ -400,14 +480,14 @@ with tab1:
 
         else:
             rem_b = round(u_limit - already_spent_today, 2)
-            limit_txt = f"今日限額：<b>${fmt_price(u_limit)}</b> 元 ｜ 今日已累計：<b>${fmt_price(already_spent_today)}</b> 元 ｜ 剩餘額度：<b style='color:#DC2626;'>${fmt_price(rem_b)}</b> 元" if u_limit > 0 else "今日限額：<b>無限制</b>"
+            limit_txt = f"今日限額：<b>${fmt_price(u_limit)}</b> 元 ｜ 今日已累計：<b>${fmt_price(already_spent_today)}</b> 元 ｜ 剩餘可用：<b style='color:#DC2626;'>${fmt_price(rem_b)}</b> 元" if u_limit > 0 else "今日限額：<b>無限制</b>"
             st.markdown(f'<div class="budget-banner">👤 目前同仁：{u_name} ｜ {limit_txt}</div>', unsafe_allow_html=True)
 
             c_head1, c_head2 = st.columns([3, 1])
             with c_head1:
-                st.subheader("👉 第二步：今天想吃哪一家？（點選店家）")
+                st.markdown('<div class="step-banner">🏪 第二步：今天想吃哪一家？（點選店家大按鈕）</div>', unsafe_allow_html=True)
             with c_head2:
-                if st.button("⬅️ 重選同仁"):
+                if st.button("⬅️ 重選人員", use_container_width=True):
                     reset_to_next_user()
                     st.rerun()
 
@@ -421,9 +501,10 @@ with tab1:
 
             cols_store = st.columns(2)
             for s_idx, store_name in enumerate(store_list):
+                visual_label = get_store_visual(store_name)
                 with cols_store[s_idx % 2]:
                     st.markdown('<div class="store-btn">', unsafe_allow_html=True)
-                    if st.button(f"🏪 {store_name}", key=safe_key("sel_store", store_name, s_idx)):
+                    if st.button(visual_label, key=safe_key("sel_store", store_name, s_idx)):
                         st.session_state.selected_store = store_name
                         st.session_state.selected_category = "全部品項"
                         st.rerun()
@@ -534,20 +615,27 @@ with tab1:
             available_categories.extend(raw_cats)
 
         st.markdown('<div class="category-sticky-wrap">', unsafe_allow_html=True)
-        st.markdown("<div style='font-size:22px; font-weight:bold; color:#1E3A8A; margin-bottom:8px;'>📌 餐點類別切換（隨頁面浮動置頂）：</div>", unsafe_allow_html=True)
-        cat_choice = st.radio(
-            label="餐點分類切換",
-            options=available_categories,
+        st.markdown("<div style='font-size:24px; font-weight:900; color:#1E3A8A; margin-bottom:10px;'>👉 請看圖片選你想吃的種類：</div>", unsafe_allow_html=True)
+        
+        visual_options = [get_category_visual(c) for c in available_categories]
+        cur_visual = get_category_visual(st.session_state.selected_category)
+        cur_idx = visual_options.index(cur_visual) if cur_visual in visual_options else 0
+
+        chosen_visual = st.radio(
+            label="餐點分類圖樣選單",
+            options=visual_options,
+            index=cur_idx,
             horizontal=True,
-            index=available_categories.index(st.session_state.selected_category) if st.session_state.selected_category in available_categories else 0,
-            key="category_selector",
+            key="category_visual_selector",
             label_visibility="collapsed"
         )
-        st.session_state.selected_category = cat_choice
+        
+        selected_cat_clean = available_categories[visual_options.index(chosen_visual)]
+        st.session_state.selected_category = selected_cat_clean
         st.markdown('</div>', unsafe_allow_html=True)
 
-        if cat_choice != "全部品項" and "分類" in store_menu.columns:
-            filtered_menu = store_menu[store_menu["分類"] == cat_choice]
+        if selected_cat_clean != "全部品項" and "分類" in store_menu.columns:
+            filtered_menu = store_menu[store_menu["分類"] == selected_cat_clean]
         else:
             filtered_menu = store_menu
 
@@ -558,10 +646,10 @@ with tab1:
                 continue
             displayed_items.append((row, base_p))
 
-        st.write(f"#### 🍲 【{cat_choice}】餐點清單：")
+        st.write(f"#### {chosen_visual} 的餐點項目：")
 
         if not displayed_items:
-            st.warning(f"⚠️ 【{cat_choice}】沒有符合您剩餘預算的餐點，或品項已達金額上限！")
+            st.warning(f"⚠️ 【{selected_cat_clean}】沒有符合您剩餘預算的餐點，或品項已達金額上限！")
         else:
             cols = st.columns(2)
             for idx, (m_row, base_p) in enumerate(displayed_items):
@@ -595,7 +683,7 @@ with tab1:
                         st.markdown(f"""
                         <div class="food-card">
                             <h3 style="margin-top:0; margin-bottom:6px; color:#1E293B;">🍲 {item_name}</h3>
-                            <div style="font-size:20px; color:#475569; margin-bottom:12px;">單價：<b style="color:#059669; font-size:24px;">${fmt_price(base_p)} 元</b></div>
+                            <div style="font-size:22px; color:#475569; margin-bottom:12px;">單價：<b style="color:#059669; font-size:26px;">${fmt_price(base_p)} 元</b></div>
                         </div>
                         """, unsafe_allow_html=True)
                         
