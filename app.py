@@ -13,18 +13,15 @@ APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbw0UEIp80umbupbDQkMQA
 SHEET_ID = "1mHnXoG-Duq45EvwZTRVuq86rsK8T5DA9NkLnOi30wuM"
 ORDERS_GID = "1002"
 
-# 注入真正能吸附在 Streamlit 滾動容器的 CSS
 st.markdown("""
 <style>
     html { scroll-behavior: smooth; }
     html, body, [class*="css"] { font-size: 20px; }
     
-    /* 解除 Streamlit 父層 overflow 限制，讓 Sticky 正常作用 */
     section.main > div {
         overflow: visible !important;
     }
     
-    /* 核心：精準讓分類選單容器永久浮動在頂部 */
     div.category-sticky-wrap {
         position: -webkit-sticky !important;
         position: sticky !important;
@@ -38,7 +35,6 @@ st.markdown("""
         margin-bottom: 20px !important;
     }
 
-    /* 分類大膠囊按鈕：超大觸控面積、不擠壓、字體加粗 */
     div.category-sticky-wrap div[data-testid="stRadio"] > div[role="radiogroup"] {
         display: flex !important;
         flex-wrap: wrap !important;
@@ -63,7 +59,6 @@ st.markdown("""
         background-color: #EFF6FF !important;
     }
 
-    /* 姓名大按鈕 */
     .user-btn button {
         width: 100% !important; min-height: 85px !important;
         font-size: 26px !important; font-weight: bold !important;
@@ -73,7 +68,6 @@ st.markdown("""
     }
     .user-btn button:hover { border-color: #2563EB !important; background-color: #EFF6FF !important; }
     
-    /* 店家大按鈕 */
     .store-btn button {
         width: 100% !important; min-height: 95px !important;
         font-size: 28px !important; font-weight: 900 !important;
@@ -86,14 +80,12 @@ st.markdown("""
         background-color: #FDE68A !important; border-color: #D97706 !important;
     }
 
-    /* 餐點大圖卡 */
     .food-card {
         background-color: #FFFFFF; border: 2px solid #CBD5E1;
         border-radius: 18px; padding: 18px; margin-bottom: 18px;
         box-shadow: 0 3px 8px rgba(0,0,0,0.06);
     }
     
-    /* 數量加大計數按鈕 (+/-) */
     .qty-control button {
         font-size: 26px !important; font-weight: 900 !important;
         min-height: 52px !important; width: 100% !important;
@@ -106,7 +98,6 @@ st.markdown("""
         border: 1px solid #E2E8F0;
     }
     
-    /* 購物車與預算欄 */
     .cart-item {
         background-color: #F8FAFC; border-left: 8px solid #2563EB;
         padding: 14px 18px; border-radius: 10px; margin-bottom: 10px; font-size: 22px;
@@ -200,7 +191,7 @@ def parse_price(val):
         v = float(clean)
         return int(v) if v.is_integer() else round(v, 2)
     except:
-        return 0
+        return 0.0
 
 def fmt_price(val):
     try:
@@ -383,12 +374,14 @@ with tab1:
         u_limit = st.session_state.user_limit
 
         df_all = st.session_state.orders_data
-        already_spent_today = 0
+        already_spent_today = 0.0
         if not df_all.empty and "員工姓名" in df_all.columns and "訂購日期" in df_all.columns:
             d_s = df_all["訂購日期"].astype(str).str.replace("-", "/")
             today_slash = today_str.replace("-", "/")
             user_today_orders = df_all[(df_all["員工姓名"] == u_name) & (d_s == today_slash)]
-            already_spent_today = round(user_today_orders["小計金額"].apply(parse_price).sum(), 2)
+            if not user_today_orders.empty and "小計金額" in user_today_orders.columns:
+                spent_sum = user_today_orders["小計金額"].apply(parse_price).sum()
+                already_spent_today = round(float(spent_sum), 2) if pd.notnull(spent_sum) else 0.0
 
         if u_limit > 0 and already_spent_today >= u_limit:
             st.markdown(f"""
@@ -443,12 +436,14 @@ with tab1:
         u_limit = st.session_state.user_limit
 
         df_all = st.session_state.orders_data
-        already_spent_today = 0
+        already_spent_today = 0.0
         if not df_all.empty and "員工姓名" in df_all.columns and "訂購日期" in df_all.columns:
             d_s = df_all["訂購日期"].astype(str).str.replace("-", "/")
             today_slash = today_str.replace("-", "/")
             user_today_orders = df_all[(df_all["員工姓名"] == u_name) & (d_s == today_slash)]
-            already_spent_today = round(user_today_orders["小計金額"].apply(parse_price).sum(), 2)
+            if not user_today_orders.empty and "小計金額" in user_today_orders.columns:
+                spent_sum = user_today_orders["小計金額"].apply(parse_price).sum()
+                already_spent_today = round(float(spent_sum), 2) if pd.notnull(spent_sum) else 0.0
 
         cart_sum = round(sum(x["subtotal"] for x in st.session_state.cart), 2)
         remaining_daily_budget = round(u_limit - already_spent_today - cart_sum, 2) if u_limit > 0 else 999999
@@ -527,7 +522,6 @@ with tab1:
 
         st.write("---")
 
-        # 篩選菜單
         store_menu = df_menu.copy()
         if "供應狀態" in store_menu.columns:
             store_menu = store_menu[store_menu["供應狀態"] == "供應中"]
@@ -539,9 +533,6 @@ with tab1:
             raw_cats = [str(c).strip() for c in store_menu["分類"].dropna().unique().tolist() if str(c).strip() not in ["", "nan"]]
             available_categories.extend(raw_cats)
 
-        # -------------------------------------------------------------
-        # 置頂吸附容器 (Sticky Header 包裝外層)
-        # -------------------------------------------------------------
         st.markdown('<div class="category-sticky-wrap">', unsafe_allow_html=True)
         st.markdown("<div style='font-size:22px; font-weight:bold; color:#1E3A8A; margin-bottom:8px;'>📌 餐點類別切換（隨頁面浮動置頂）：</div>", unsafe_allow_html=True)
         cat_choice = st.radio(
@@ -555,7 +546,6 @@ with tab1:
         st.session_state.selected_category = cat_choice
         st.markdown('</div>', unsafe_allow_html=True)
 
-        # 依所選類別進一步篩選菜單品項
         if cat_choice != "全部品項" and "分類" in store_menu.columns:
             filtered_menu = store_menu[store_menu["分類"] == cat_choice]
         else:
