@@ -297,7 +297,7 @@ def parse_extra_price(option_text):
 
 def load_menu():
     try:
-        t = int(time.time())
+        t = int(time.time() * 1000)
         url = f"https://docs.google.com/spreadsheets/d/{SHEET_ID}/gviz/tq?tqx=out:csv&sheet=menu&_t={t}"
         df = pd.read_csv(url)
         df.columns = [str(c).strip() for c in df.columns]
@@ -309,7 +309,7 @@ def load_menu():
 
 def load_users():
     try:
-        t = int(time.time())
+        t = int(time.time() * 1000)
         url = f"https://docs.google.com/spreadsheets/d/{SHEET_ID}/gviz/tq?tqx=out:csv&sheet=users&_t={t}"
         df = pd.read_csv(url)
         return df.dropna(subset=["姓名"]) if "姓名" in df.columns else df
@@ -317,7 +317,7 @@ def load_users():
         return pd.DataFrame()
 
 def load_orders_from_sheet():
-    t = int(time.time())
+    t = int(time.time() * 1000)
     url = f"https://docs.google.com/spreadsheets/d/{SHEET_ID}/export?format=csv&gid={ORDERS_GID}&_t={t}"
     try:
         raw_df = pd.read_csv(url, header=None)
@@ -365,14 +365,14 @@ def load_orders_from_sheet():
         
         df = df[df["訂單編號"].astype(str).str.strip() != "訂單編號"]
         return df.reset_index(drop=True)
-    except Exception as e:
+    except Exception:
         return pd.DataFrame(columns=REQUIRED_ORDER_COLS)
 
 def sync_to_google_sheet(payload):
     try:
         data_str = json.dumps(payload, ensure_ascii=False)
         headers = {"Content-Type": "text/plain;charset=utf-8"}
-        resp = requests.post(APPS_SCRIPT_URL, data=data_str.encode('utf-8'), headers=headers, timeout=15, allow_redirects=True)
+        resp = requests.post(APPS_SCRIPT_URL, data=data_str.encode('utf-8'), headers=headers, timeout=20, allow_redirects=True)
         return True, resp.text
     except Exception as e:
         return False, str(e)
@@ -772,7 +772,7 @@ with tab1:
         st.markdown('<a href="#top_anchor" class="scroll-top-btn">⬆️ 返回最頂端（查看購物車／重選店家）</a>', unsafe_allow_html=True)
 
 # -------------------------------------------------------------
-# 分頁 2：明細與對帳
+# 分頁 2：明細與對帳（同步持久化修復）
 # -------------------------------------------------------------
 with tab2:
     st.subheader("📊 每日點餐明細與收款找零對帳")
@@ -901,20 +901,20 @@ with tab2:
                                 target_indices = st.session_state.orders_data[st.session_state.orders_data["員工姓名"] == target_user].index
                                 st.session_state.orders_data.loc[target_indices, "付款狀態"] = "已付款"
                                 
-                                sync_to_google_sheet({
-                                    "action": "update_status",
-                                    "date": str(query_date),
-                                    "user": target_user,
-                                    "status": "已付款"
-                                })
-                                st.success(f"已完成 {target_user} 收款！")
+                                with st.spinner(f"正在將 {target_user} 付款狀態寫入雲端..."):
+                                    sync_to_google_sheet({
+                                        "action": "update_status",
+                                        "user": target_user,
+                                        "status": "已付款"
+                                    })
+                                st.success(f"已完成 {target_user} 收款並同步至雲端！")
+                                time.sleep(0.5)
                                 st.rerun()
                         else:
                             st.error(f"⚠️ 還不夠喔！同仁還差 ${fmt_price(abs(change))} 元")
 
             st.write("---")
             
-            # 依行數 (row_idx) 作為唯一修改目標
             if st.session_state.edit_row_idx is not None:
                 e_idx = st.session_state.edit_row_idx
                 if e_idx in st.session_state.orders_data.index:
@@ -945,14 +945,16 @@ with tab2:
                                 st.session_state.orders_data.loc[e_idx, "小計金額"] = f"${fmt_price(new_price)}"
                                 st.session_state.orders_data.loc[e_idx, "付款狀態"] = new_status
                                 
-                                sync_to_google_sheet({
-                                    "action": "update_status",
-                                    "date": str(orig.get("訂購日期", "")),
-                                    "user": new_name,
-                                    "status": new_status
-                                })
+                                with st.spinner("正在同步修改至雲端..."):
+                                    sync_to_google_sheet({
+                                        "action": "update_status",
+                                        "order_id": str(orig.get("訂單編號", "")),
+                                        "user": new_name,
+                                        "status": new_status
+                                    })
                                 st.session_state.edit_row_idx = None
                                 st.success("訂單修改完成！")
+                                time.sleep(0.5)
                                 st.rerun()
                         with btn_sub2:
                             if st.form_submit_button("❌ 取消編輯", use_container_width=True):
@@ -979,22 +981,26 @@ with tab2:
                         if cur_status == "已付款":
                             if st.button("🟢 已付 (改未付)", key=f"status_btn_{row_idx}_{ord_id}"):
                                 st.session_state.orders_data.loc[row_idx, "付款狀態"] = "未付款"
-                                sync_to_google_sheet({
-                                    "action": "update_status",
-                                    "date": str(row_data.get("訂購日期", "")),
-                                    "user": row_data.get("員工姓名", ""),
-                                    "status": "未付款"
-                                })
+                                with st.spinner("更新雲端為未付款..."):
+                                    sync_to_google_sheet({
+                                        "action": "update_status",
+                                        "order_id": str(ord_id),
+                                        "user": row_data.get("員工姓名", ""),
+                                        "status": "未付款"
+                                    })
+                                time.sleep(0.3)
                                 st.rerun()
                         else:
                             if st.button("🔴 未付 (改已付)", key=f"status_btn_{row_idx}_{ord_id}"):
                                 st.session_state.orders_data.loc[row_idx, "付款狀態"] = "已付款"
-                                sync_to_google_sheet({
-                                    "action": "update_status",
-                                    "date": str(row_data.get("訂購日期", "")),
-                                    "user": row_data.get("員工姓名", ""),
-                                    "status": "已付款"
-                                })
+                                with st.spinner("更新雲端為已付款..."):
+                                    sync_to_google_sheet({
+                                        "action": "update_status",
+                                        "order_id": str(ord_id),
+                                        "user": row_data.get("員工姓名", ""),
+                                        "status": "已付款"
+                                    })
+                                time.sleep(0.3)
                                 st.rerun()
                     with r_c6:
                         c_ed1, c_ed2 = st.columns(2)
