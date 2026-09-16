@@ -101,18 +101,18 @@ st.markdown("""
         background-color: #FFFFFF;
         border: 3px solid #3B82F6;
         border-radius: 20px;
-        padding: 20px;
-        margin-bottom: 22px;
-        box-shadow: 0 6px 16px rgba(59,130,246,0.15);
+        padding: 22px;
+        margin-bottom: 24px;
+        box-shadow: 0 6px 18px rgba(59,130,246,0.15);
     }
     
     /* 週一至週五未選中 */
     .weekday-btn button {
         width: 100% !important;
-        min-height: 86px !important;
+        min-height: 96px !important;
         font-size: 26px !important;
         font-weight: 900 !important;
-        border-radius: 16px !important;
+        border-radius: 18px !important;
         border: 2.5px solid #CBD5E1 !important;
         background-color: #F8FAFC !important;
         color: #334155 !important;
@@ -127,17 +127,17 @@ st.markdown("""
         transform: translateY(-2px);
     }
 
-    /* 週一至週五已選中（高亮深藍底白字） */
+    /* 週一至週五已選中 */
     .weekday-btn-active button {
         width: 100% !important;
-        min-height: 86px !important;
+        min-height: 96px !important;
         font-size: 26px !important;
         font-weight: 900 !important;
-        border-radius: 16px !important;
+        border-radius: 18px !important;
         border: 3.5px solid #1E40AF !important;
         background: linear-gradient(135deg, #2563EB 0%, #1D4ED8 100%) !important;
         color: #FFFFFF !important;
-        box-shadow: 0 6px 16px rgba(37,99,235,0.4) !important;
+        box-shadow: 0 6px 16px rgba(37,99,235,0.35) !important;
         white-space: pre-line !important;
         line-height: 1.25 !important;
         transform: scale(1.02);
@@ -453,6 +453,7 @@ def reset_to_next_user():
     st.session_state.cart = []
     st.session_state.last_paid_amount = 0
     st.session_state.order_finished = False
+    st.session_state.date_confirmed = False
     
     keys_to_clear = [k for k in st.session_state.keys() if k.startswith("qty_val_") or k.startswith("nd_") or k.startswith("ex_")]
     for k in keys_to_clear:
@@ -462,6 +463,8 @@ if "orders_data" not in st.session_state:
     st.session_state.orders_data = load_orders_from_sheet()
 if "target_order_date" not in st.session_state:
     st.session_state.target_order_date = date.today()
+if "date_confirmed" not in st.session_state:
+    st.session_state.date_confirmed = False
 if "selected_user" not in st.session_state:
     st.session_state.selected_user = None
 if "selected_store" not in st.session_state:
@@ -492,11 +495,12 @@ tab1, tab2, tab3, tab4 = st.tabs([
 ])
 
 # -------------------------------------------------------------
-# 分頁 1：友善大圖點餐
+# 分頁 1：友善大圖點餐（點選日期立即跳轉）
 # -------------------------------------------------------------
 with tab1:
     workweek_list = get_current_workweek_dates()
     
+    # 點餐完成畫面
     if st.session_state.order_finished:
         pay_amount = st.session_state.last_paid_amount
         chosen_date_str = str(st.session_state.target_order_date)
@@ -513,12 +517,12 @@ with tab1:
             st.rerun()
         st.markdown('</div>', unsafe_allow_html=True)
 
-    # 第一步：選擇預訂日期（週一～週五大按鈕）與姓名
-    elif st.session_state.selected_user is None:
+    # 階段 0：先點選「預訂日期」（週一至週五大按鈕，點擊立刻跳到選人）
+    elif not st.session_state.date_confirmed:
         st.markdown('<div class="date-picker-box">', unsafe_allow_html=True)
-        st.markdown("<div style='font-size: 28px; font-weight: 900; color: #1E3A8A; margin-bottom: 14px;'>📅 請點選你想預訂哪一天的午餐：</div>", unsafe_allow_html=True)
+        st.markdown("<div style='font-size: 30px; font-weight: 900; color: #1E3A8A; margin-bottom: 16px;'>📅 第一步：請問你想預訂哪一天的午餐？（點選按鈕立即開始）</div>", unsafe_allow_html=True)
         
-        # 展開週一到週五的 5 個大按鈕，點擊立即切換
+        # 展開週一到週五的 5 個特大按鍵
         w_cols = st.columns(5)
         for w_idx, w_item in enumerate(workweek_list):
             w_date = w_item["date"]
@@ -530,24 +534,39 @@ with tab1:
                 st.markdown(f'<div class="{btn_class}">', unsafe_allow_html=True)
                 if st.button(w_label, key=f"date_btn_{w_idx}_{w_date.strftime('%Y%m%d')}"):
                     st.session_state.target_order_date = w_date
+                    st.session_state.date_confirmed = True  # 標記確認，直接進入下一步選人
                     st.rerun()
                 st.markdown('</div>', unsafe_allow_html=True)
 
-        chosen_date_str = str(st.session_state.target_order_date)
-        
-        # 跨週挑選其他日期
+        st.write("")
         c_sub1, c_sub2 = st.columns([3, 1])
         with c_sub1:
-            st.markdown(f"<div style='font-size:24px; font-weight:900; color:#059669; margin-top:12px;'>👉 目前預訂點餐日期為：<span style='font-size:30px; text-decoration:underline;'>{chosen_date_str}</span></div>", unsafe_allow_html=True)
+            st.markdown("<div style='font-size:22px; color:#64748B;'>（點選任一按鈕後，會直接進入該日期的點餐清單）</div>", unsafe_allow_html=True)
         with c_sub2:
-            custom_date = st.date_input("📅 挑選其他日期", value=st.session_state.target_order_date, key="custom_date_picker")
+            custom_date = st.date_input("挑選其他跨週日期", value=st.session_state.target_order_date, key="custom_date_picker")
             if custom_date != st.session_state.target_order_date:
                 st.session_state.target_order_date = custom_date
+                st.session_state.date_confirmed = True
                 st.rerun()
 
         st.markdown('</div>', unsafe_allow_html=True)
 
-        st.markdown(f'<div class="step-title">【{chosen_date_str}】請問你是誰？（點選名字按鈕）</div>', unsafe_allow_html=True)
+    # 階段 1：選擇同仁姓名
+    elif st.session_state.selected_user is None:
+        chosen_date_str = str(st.session_state.target_order_date)
+        
+        c_dt1, c_dt2 = st.columns([3, 1])
+        with c_dt1:
+            st.markdown(f'<div class="budget-tag">📅 目前預訂用餐日期：<b style="color:#059669; font-size:28px;">{chosen_date_str}</b></div>', unsafe_allow_html=True)
+        with c_dt2:
+            if st.button("⬅️ 更換日期", use_container_width=True):
+                st.session_state.date_confirmed = False
+                st.session_state.selected_user = None
+                st.session_state.selected_store = None
+                st.session_state.cart = []
+                st.rerun()
+
+        st.markdown(f'<div class="step-title">第二步：請問你是誰？（點選名字按鈕）</div>', unsafe_allow_html=True)
         if df_users.empty or "姓名" not in df_users.columns:
             st.warning("⚠️ 尚無人員名單，請至【👥 人員名單管理】確認。")
         else:
@@ -569,7 +588,7 @@ with tab1:
                         st.rerun()
                     st.markdown('</div>', unsafe_allow_html=True)
 
-    # 第二步：選擇店家
+    # 階段 2：選擇店家
     elif st.session_state.selected_store is None:
         u_name = st.session_state.selected_user
         u_limit = st.session_state.user_limit
@@ -607,10 +626,12 @@ with tab1:
 
             c_head1, c_head2 = st.columns([3, 1])
             with c_head1:
-                st.markdown('<div class="step-title">今天想吃哪一家？（點選店家大按鈕）</div>', unsafe_allow_html=True)
+                st.markdown('<div class="step-title">第三步：今天想吃哪一家？（點選店家大按鈕）</div>', unsafe_allow_html=True)
             with c_head2:
-                if st.button("⬅️ 重選人員／日期", use_container_width=True):
-                    reset_to_next_user()
+                if st.button("⬅️ 重選人員", use_container_width=True):
+                    st.session_state.selected_user = None
+                    st.session_state.selected_store = None
+                    st.session_state.cart = []
                     st.rerun()
 
             if "店家名稱" in df_menu.columns:
@@ -632,7 +653,7 @@ with tab1:
                         st.rerun()
                     st.markdown('</div>', unsafe_allow_html=True)
 
-    # 第三步：挑選餐點
+    # 階段 3：挑選餐點
     else:
         u_name = st.session_state.selected_user
         current_store = st.session_state.selected_store
