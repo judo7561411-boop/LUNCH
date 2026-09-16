@@ -317,30 +317,20 @@ st.markdown("""
         margin-bottom: 14px; padding-bottom: 10px; border-bottom: 1px solid #F1F5F9;
     }
 
-    /* 彙整出單表列印專用樣式 */
+    /* 獨立出單單據視覺 */
     .receipt-box {
         background-color: #FFFFFF;
         border: 2px dashed #475569;
-        border-radius: 14px;
+        border-radius: 16px;
         padding: 24px;
         margin-top: 16px;
         margin-bottom: 24px;
-        font-family: monospace, sans-serif;
     }
     .receipt-header {
         text-align: center;
-        border-bottom: 2px dashed #64748B;
-        padding-bottom: 14px;
-        margin-bottom: 14px;
-    }
-    .receipt-section-title {
-        font-size: 24px;
-        font-weight: 900;
-        color: #1E3A8A;
-        border-left: 6px solid #2563EB;
-        padding-left: 8px;
-        margin-top: 18px;
-        margin-bottom: 10px;
+        border-bottom: 2px dashed #94A3B8;
+        padding-bottom: 16px;
+        margin-bottom: 18px;
     }
 
     @media print {
@@ -517,9 +507,10 @@ df_users = load_users()
 
 st.title("🍱 中餐點餐與管理系統")
 
-tab1, tab2, tab3, tab4 = st.tabs([
+tab1, tab2, tab3, tab4, tab5 = st.tabs([
     "🛒 友善大圖點餐", 
-    "📊 明細與出單對帳", 
+    "💵 每日收款對帳", 
+    "🖨️ 每日出單彙整", 
     "⚙️ 菜單管理與編輯", 
     "👥 人員名單管理"
 ])
@@ -546,7 +537,7 @@ with tab1:
             st.rerun()
         st.markdown('</div>', unsafe_allow_html=True)
 
-    # 階段 0：先點選「預訂日期」（週一至週五大按鈕）
+    # 階段 0：先點選「預訂日期」
     elif not st.session_state.date_confirmed:
         st.markdown('<div class="date-picker-box">', unsafe_allow_html=True)
         st.markdown("<div style='font-size: 30px; font-weight: 900; color: #1E3A8A; margin-bottom: 16px;'>📅 第一步：請問你想預訂哪一天的午餐？（點選按鈕立即開始）</div>", unsafe_allow_html=True)
@@ -929,19 +920,19 @@ with tab1:
         st.markdown('<a href="#top_anchor" class="scroll-top-btn">⬆️ 返回最頂端（查看購物車／重選店家）</a>', unsafe_allow_html=True)
 
 # -------------------------------------------------------------
-# 分頁 2：明細、對帳與系統彙整出單（重點更新）
+# 分頁 2：每日收款對帳
 # -------------------------------------------------------------
 with tab2:
-    st.subheader("📊 每日點餐明細、收款對帳與系統直接出單")
+    st.subheader("💵 每日點餐明細與收款找零對帳")
 
     c_q1, c_q2, c_q3 = st.columns([2, 1, 1])
     with c_q1:
-        query_date = st.date_input("選擇欲對帳或出單的日期", value=st.session_state.target_order_date, key="recon_date_input")
+        query_date = st.date_input("選擇欲對帳或查詢的日期", value=st.session_state.target_order_date, key="recon_date_input")
     with c_q2:
-        filter_mode = st.radio("檢視模式", ["📅 依所選日期", "📋 顯示全部訂單"], index=0, horizontal=True)
+        filter_mode = st.radio("檢視模式", ["📅 依所選日期", "📋 顯示全部訂單"], index=0, horizontal=True, key="recon_filter_mode")
     with c_q3:
         st.write("")
-        if st.button("🔄 重新從雲端抓取", type="primary"):
+        if st.button("🔄 重新從雲端抓取", type="primary", key="btn_refresh_recon"):
             st.session_state.orders_data = load_orders_from_sheet()
             st.rerun()
 
@@ -965,112 +956,28 @@ with tab2:
         else:
             current_orders["金額數值"] = current_orders["小計金額"].apply(parse_price)
             current_orders["數量數值"] = current_orders["數量"].apply(lambda x: int(parse_price(x)) if parse_price(x) > 0 else 1)
-            
+
             total_money = round(current_orders["金額數值"].sum(), 2)
             total_items = len(current_orders)
-            total_portions = int(current_orders["數量數值"].sum())
 
             paid_orders = current_orders[current_orders["付款狀態"] == "已付款"]
             paid_money = round(paid_orders["金額數值"].sum(), 2)
             unpaid_money = round(total_money - paid_money, 2)
             unpaid_count = total_items - len(paid_orders)
-            all_paid = (unpaid_count == 0)
 
             m1, m2, m3, m4 = st.columns(4)
             m1.metric("當前檢視總額", f"${fmt_price(total_money)} 元")
-            m2.metric("總份數 / 筆數", f"{total_portions} 份 ({total_items} 筆)")
+            m2.metric("總訂單數", f"{total_items} 筆")
             m3.metric("已收款總額", f"${fmt_price(paid_money)} 元", f"{len(paid_orders)} 筆已收")
             m4.metric("待收餘額 (未收)", f"${fmt_price(unpaid_money)} 元", f"{unpaid_count} 筆待收", delta_color="inverse")
 
             st.write("---")
 
-            # ---------------------------------------------------------
-            # 🖨️ 系統彙整出單核心區塊（確認全員付款完畢後一鍵出單）
-            # ---------------------------------------------------------
-            st.markdown("### 🖨️ 系統彙整出單模式（給店家報單 / 分發餐點核對）")
-
-            if all_paid:
-                st.success(f"🎉【{query_date}】所有同仁皆已付款完畢！系統已為您自動彙整好店家總點單如下：")
-            else:
-                st.warning(f"⚠️ 提醒：目前尚有 {unpaid_count} 筆訂單尚未付款（待收 ${fmt_price(unpaid_money)} 元）。建議確認收款完畢後再向店家確認訂單！")
-
-            # 建立店家歸納與品項彙整邏輯
-            # 組合完整餐點名稱以利分類統計
-            def make_spec_name(r):
-                item = str(r.get("餐點品項", "")).strip()
-                nd = str(r.get("麵類選擇", "")).strip()
-                ex = str(r.get("是否加麵", "")).strip()
-                spec_parts = []
-                if nd and nd not in ["-", "nan", "無", "標準配置"]:
-                    spec_parts.append(nd)
-                if "要加麵" in ex:
-                    spec_parts.append("加麵")
-                spec_str = f" ({' / '.join(spec_parts)})" if spec_parts else ""
-                return f"{item}{spec_str}"
-
-            current_orders["餐點規格彙整"] = current_orders.apply(make_spec_name, axis=1)
-
-            # 品項加總明細
-            summary_grouped = current_orders.groupby("餐點規格彙整")["數量數值"].sum().reset_index()
-            summary_grouped.columns = ["餐點項目與規格", "總數量 (份)"]
-            summary_grouped = summary_grouped.sort_values(by="總數量 (份)", ascending=False)
-
-            # 依個人分發名單
-            person_grouped = current_orders.groupby("員工姓名").agg({
-                "餐點規格彙整": lambda x: "、".join(f"{item} x{qty}" if qty > 1 else item for item, qty in zip(x, current_orders.loc[x.index, "數量數值"])),
-                "金額數值": "sum",
-                "付款狀態": lambda s: "已付款" if all(x == "已付款" for x in s) else "未付款"
-            }).reset_index()
-            person_grouped.columns = ["同仁姓名", "點購餐點品項明細", "應付小計", "付款狀態"]
-
-            # 產生純文字格式以供 LINE 一鍵複製傳送
-            line_order_text = f"【午餐訂單 - {query_date}】\n--------------------\n"
-            line_order_text += "【餐點彙整清單】\n"
-            for _, s_row in summary_grouped.iterrows():
-                line_order_text += f"▪ {s_row['餐點項目與規格']}：{s_row['總數量 (份)']} 份\n"
-            line_order_text += "--------------------\n"
-            line_order_text += f"總計：{total_portions} 份\n總金額：${fmt_price(total_money)} 元\n"
-
-            # 出單專用容器 (支援列印與乾淨視圖)
-            st.markdown(f"""
-            <div class="receipt-box" id="print-area">
-                <div class="receipt-header">
-                    <h2 style="margin:0; font-size:32px; color:#1E293B;">🍱 中餐訂餐彙整單</h2>
-                    <div style="font-size:20px; color:#475569; margin-top:6px;">
-                        訂購日期：<b>{query_date}</b> ｜ 出單總份數：<b>{total_portions} 份</b> ｜ 總金額：<b style="color:#DC2626;">${fmt_price(total_money)} 元</b>
-                    </div>
-                </div>
-            </div>
-            """, unsafe_allow_html=True)
-
-            col_rep1, col_rep2 = st.columns([1, 1])
-            with col_rep1:
-                st.markdown("#### 📞 1. 店家總單（報單照這個唸即可）：")
-                st.dataframe(summary_grouped, use_container_width=True, hide_index=True)
-                
-            with col_rep2:
-                st.markdown("#### 👥 2. 個人取餐分發名單（便當來了對照發放）：")
-                st.dataframe(person_grouped, use_container_width=True, hide_index=True)
-
-            # 快速傳給店家的文字複製器
-            with st.expander("📲 點此展開「LINE 一鍵複製店家格式」文字", expanded=False):
-                st.text_area("可直接複製以下文字傳給店家：", value=line_order_text, height=200)
-
-            # 列印輔助按鈕
-            c_pr1, c_pr2 = st.columns([1, 3])
-            with c_pr1:
-                st.button("🖨️ 列印今日出單表 (PDF)", on_click=lambda: st.components.v1.html("<script>window.print();</script>", height=0))
-            with c_pr2:
-                st.caption("💡 提示：點選「列印出單表」後，可選擇儲存成 PDF 或以實體印表機列印，作為現場分發餐點的勾選單！")
-
-            st.write("---")
-
-            # 現場找零輔助器
             with st.expander("💵 現場收款與【新臺幣實體貨幣】找零輔助器", expanded=True):
                 unpaid_list = current_orders[current_orders["付款狀態"] != "已付款"]
                 
                 if unpaid_list.empty:
-                    st.success("🎉 目前檢視範圍內的所有訂單皆已全數收款完畢！")
+                    st.success("🎉 目前檢視範圍內的所有訂單皆已全數收款完畢！可以切換到【🖨️ 每日出單彙整】分頁進行出單！")
                 else:
                     user_options = unpaid_list["員工姓名"].dropna().unique().tolist()
                     calc_col1, calc_col2 = st.columns([1, 1])
@@ -1158,7 +1065,6 @@ with tab2:
 
             st.write("---")
             
-            # 單筆編輯
             if st.session_state.edit_row_idx is not None:
                 e_idx = st.session_state.edit_row_idx
                 if e_idx in st.session_state.orders_data.index:
@@ -1207,7 +1113,7 @@ with tab2:
                                 st.session_state.edit_row_idx = None
                                 st.rerun()
 
-            st.markdown("#### 📋 今日全部詳細流水清單（可直接修改與切換狀態）：")
+            st.markdown("#### 📋 每日流水帳明細清單（可切換付款狀態與修改）：")
             for row_idx, row_data in current_orders.iterrows():
                 ord_id = row_data.get("訂單編號", "")
                 with st.container():
@@ -1263,9 +1169,123 @@ with tab2:
                     st.markdown('</div>', unsafe_allow_html=True)
 
 # -------------------------------------------------------------
-# 分頁 3：菜單管理
+# 分頁 3：🖨️ 每日出單彙整（獨立專屬分頁）
 # -------------------------------------------------------------
 with tab3:
+    st.subheader("🖨️ 中餐訂單出單與分發彙整表")
+    
+    col_od1, col_od2 = st.columns([2, 1])
+    with col_od1:
+        order_out_date = st.date_input("選擇欲出單的日期", value=st.session_state.target_order_date, key="out_order_date_input")
+    with col_od2:
+        st.write("")
+        if st.button("🔄 重新整理訂單數據", type="primary", key="btn_refresh_out"):
+            st.session_state.orders_data = load_orders_from_sheet()
+            st.rerun()
+
+    all_orders = st.session_state.orders_data.copy()
+    q_str_dash = str(order_out_date).strip()
+    q_str_slash = q_str_dash.replace("-", "/")
+
+    if all_orders.empty:
+        st.info("目前尚無任何訂單資料。")
+    else:
+        d_series = all_orders["訂購日期"].astype(str).str.strip()
+        date_mask = (d_series == q_str_dash) | (d_series == q_str_slash) | (d_series.str.replace("-", "/") == q_str_slash)
+        out_day_orders = all_orders[date_mask].copy()
+
+        if out_day_orders.empty:
+            st.warning(f"⚠️ 在【{order_out_date}】查無點單紀錄，請先確認同仁是否已送出餐點。")
+        else:
+            out_day_orders["金額數值"] = out_day_orders["小計金額"].apply(parse_price)
+            out_day_orders["數量數值"] = out_day_orders["數量"].apply(lambda x: int(parse_price(x)) if parse_price(x) > 0 else 1)
+
+            total_money = round(out_day_orders["金額數值"].sum(), 2)
+            total_portions = int(out_day_orders["數量數值"].sum())
+            total_items = len(out_day_orders)
+
+            unpaid_subset = out_day_orders[out_day_orders["付款狀態"] != "已付款"]
+            unpaid_cnt = len(unpaid_subset)
+            unpaid_sum = round(unpaid_subset["金額數值"].sum(), 2)
+
+            # 付款狀況提示
+            if unpaid_cnt == 0:
+                st.success(f"🎉【{order_out_date}】全體同仁皆已完成付款！可直接放心出單給店家。")
+            else:
+                st.warning(f"⚠️ 注意：尚有 {unpaid_cnt} 筆訂單尚未付款（待收 ${fmt_price(unpaid_sum)} 元），請至【💵 每日收款對帳】完成收錢。")
+
+            # 規格彙整名稱
+            def make_spec_name(r):
+                item = str(r.get("餐點品項", "")).strip()
+                nd = str(r.get("麵類選擇", "")).strip()
+                ex = str(r.get("是否加麵", "")).strip()
+                spec_parts = []
+                if nd and nd not in ["-", "nan", "無", "標準配置"]:
+                    spec_parts.append(nd)
+                if "要加麵" in ex:
+                    spec_parts.append("加麵")
+                spec_str = f" ({' / '.join(spec_parts)})" if spec_parts else ""
+                return f"{item}{spec_str}"
+
+            out_day_orders["餐點規格彙整"] = out_day_orders.apply(make_spec_name, axis=1)
+
+            # 1. 店家品項加總總表
+            summary_grouped = out_day_orders.groupby("餐點規格彙整")["數量數值"].sum().reset_index()
+            summary_grouped.columns = ["餐點項目與規格", "總數量 (份)"]
+            summary_grouped = summary_grouped.sort_values(by="總數量 (份)", ascending=False)
+
+            # 2. 個人分發核對名單
+            person_grouped = out_day_orders.groupby("員工姓名").agg({
+                "餐點規格彙整": lambda x: "、".join(f"{item} x{qty}" if qty > 1 else item for item, qty in zip(x, out_day_orders.loc[x.index, "數量數值"])),
+                "金額數值": "sum",
+                "付款狀態": lambda s: "已付款" if all(x == "已付款" for x in s) else "未付款"
+            }).reset_index()
+            person_grouped.columns = ["同仁姓名", "點購餐點品項明細", "應付小計", "付款狀態"]
+
+            # LINE 純文字清單
+            line_order_text = f"【午餐訂單 - {order_out_date}】\n--------------------\n"
+            line_order_text += "【餐點彙整清單】\n"
+            for _, s_row in summary_grouped.iterrows():
+                line_order_text += f"▪ {s_row['餐點項目與規格']}：{s_row['總數量 (份)']} 份\n"
+            line_order_text += "--------------------\n"
+            line_order_text += f"總計：{total_portions} 份\n總金額：${fmt_price(total_money)} 元\n"
+
+            # 單據抬頭
+            st.markdown(f"""
+            <div class="receipt-box" id="print-area">
+                <div class="receipt-header">
+                    <h2 style="margin:0; font-size:32px; color:#1E293B;">🍱 中餐訂單彙整出單表</h2>
+                    <div style="font-size:22px; color:#475569; margin-top:8px;">
+                        📅 訂購日期：<b>{order_out_date}</b> ｜ 總份數：<b>{total_portions} 份</b> ｜ 總金額：<b style="color:#DC2626; font-size:26px;">${fmt_price(total_money)} 元</b>
+                    </div>
+                </div>
+            </div>
+            """, unsafe_allow_html=True)
+
+            c_out_col1, c_out_col2 = st.columns([1, 1])
+            with c_out_col1:
+                st.markdown("#### 📞 1. 店家總單（打電話報單照這個唸）：")
+                st.dataframe(summary_grouped, use_container_width=True, hide_index=True)
+
+            with c_out_col2:
+                st.markdown("#### 👥 2. 個人發放核對名單（便當送達時對照發放）：")
+                st.dataframe(person_grouped, use_container_width=True, hide_index=True)
+
+            st.write("")
+            with st.expander("📲 點此展開「LINE 一鍵複製店家格式」文字", expanded=False):
+                st.text_area("直接複製以下文字傳給店家即可：", value=line_order_text, height=220)
+
+            # 列印輔助按鈕
+            c_p1, c_p2 = st.columns([1, 3])
+            with c_p1:
+                st.button("🖨️ 列印此出單表 (PDF)", on_click=lambda: st.components.v1.html("<script>window.print();</script>", height=0))
+            with c_p2:
+                st.caption("💡 提示：點擊「列印出單表」後，可在彈出視窗中選擇另存為 PDF 或直接列印紙本發餐勾選單！")
+
+# -------------------------------------------------------------
+# 分頁 4：菜單管理
+# -------------------------------------------------------------
+with tab4:
     st.subheader("⚙️ 菜單品項維護")
     st.caption("💡 提示：在【種類選擇】欄位中填寫該餐點可選的種類（以斜線 / 隔開，如：大/中/小 或 燴飯/燴麵）。")
     if not df_menu.empty:
@@ -1274,9 +1294,9 @@ with tab3:
         st.warning("查無菜單資料。")
 
 # -------------------------------------------------------------
-# 分頁 4：人員名單與金額限制管理
+# 分頁 5：人員名單與金額限制管理
 # -------------------------------------------------------------
-with tab4:
+with tab5:
     st.subheader("👥 人員名單與個人金額限制維護")
     if not df_users.empty:
         st.dataframe(df_users, use_container_width=True)
