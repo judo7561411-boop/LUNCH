@@ -5,7 +5,7 @@ import json
 import time
 import re
 import hashlib
-from datetime import date
+from datetime import date, timedelta
 
 st.set_page_config(page_title="中餐點餐系統", page_icon="🍱", layout="wide")
 
@@ -73,6 +73,16 @@ st.markdown("""
         padding-left: 6px !important;
         border-left: 8px solid #2563EB;
         line-height: 1.3 !important;
+    }
+
+    /* 預訂日期大卡片容器 */
+    .date-picker-box {
+        background-color: #FFFFFF;
+        border: 2.5px solid #3B82F6;
+        border-radius: 18px;
+        padding: 16px 20px;
+        margin-bottom: 22px;
+        box-shadow: 0 4px 12px rgba(59,130,246,0.12);
     }
 
     .user-btn button {
@@ -392,6 +402,8 @@ def reset_to_next_user():
 
 if "orders_data" not in st.session_state:
     st.session_state.orders_data = load_orders_from_sheet()
+if "target_order_date" not in st.session_state:
+    st.session_state.target_order_date = date.today()
 if "selected_user" not in st.session_state:
     st.session_state.selected_user = None
 if "selected_store" not in st.session_state:
@@ -422,16 +434,19 @@ tab1, tab2, tab3, tab4 = st.tabs([
 ])
 
 # -------------------------------------------------------------
-# 分頁 1：友善大圖點餐
+# 分頁 1：友善大圖點餐（加入預訂點單日期選擇）
 # -------------------------------------------------------------
 with tab1:
-    today_str = str(date.today())
+    today_obj = date.today()
+    tomorrow_obj = today_obj + timedelta(days=1)
     
+    # 點餐完成畫面
     if st.session_state.order_finished:
         pay_amount = st.session_state.last_paid_amount
+        chosen_date_str = str(st.session_state.target_order_date)
         st.markdown(f"""
         <div class="big-pay-box">
-            🎉 已完成訂單！<br>
+            🎉 已完成【{chosen_date_str}】的訂單！<br>
             請準備 <span style="color: #DC2626; font-size: 48px; font-weight: 900;">${fmt_price(pay_amount)}</span> 元付款
         </div>
         """, unsafe_allow_html=True)
@@ -442,7 +457,31 @@ with tab1:
             st.rerun()
         st.markdown('</div>', unsafe_allow_html=True)
 
+    # 第一步：選擇預訂日期與姓名
     elif st.session_state.selected_user is None:
+        # 預訂日期選擇區塊
+        st.markdown('<div class="date-picker-box">', unsafe_allow_html=True)
+        st.markdown("<div style='font-size: 26px; font-weight: 900; color: #1E3A8A; margin-bottom: 10px;'>📅 請選擇預訂用餐日期：</div>", unsafe_allow_html=True)
+        
+        d_col1, d_col2, d_col3 = st.columns([1.2, 1, 2])
+        with d_col1:
+            if st.button(f"☀️ 今日 ({today_obj.strftime('%m/%d')})", use_container_width=True):
+                st.session_state.target_order_date = today_obj
+                st.rerun()
+        with d_col2:
+            if st.button(f"🌙 明日 ({tomorrow_obj.strftime('%m/%d')})", use_container_width=True):
+                st.session_state.target_order_date = tomorrow_obj
+                st.rerun()
+        with d_col3:
+            custom_date = st.date_input("或挑選指定日期", value=st.session_state.target_order_date, key="custom_date_input", label_visibility="collapsed")
+            if custom_date != st.session_state.target_order_date:
+                st.session_state.target_order_date = custom_date
+                st.rerun()
+                
+        chosen_date_str = str(st.session_state.target_order_date)
+        st.markdown(f"<div style='font-size:22px; font-weight:bold; color:#059669; margin-top:8px;'>👉 目前預訂點餐日期為：<span style='font-size:26px; text-decoration:underline;'>{chosen_date_str}</span></div>", unsafe_allow_html=True)
+        st.markdown('</div>', unsafe_allow_html=True)
+
         st.markdown('<div class="step-title">請問你是誰？（點選名字按鈕）</div>', unsafe_allow_html=True)
         if df_users.empty or "姓名" not in df_users.columns:
             st.warning("⚠️ 尚無人員名單，請至【👥 人員名單管理】確認。")
@@ -465,26 +504,29 @@ with tab1:
                         st.rerun()
                     st.markdown('</div>', unsafe_allow_html=True)
 
+    # 第二步：選擇店家
     elif st.session_state.selected_store is None:
         u_name = st.session_state.selected_user
         u_limit = st.session_state.user_limit
+        chosen_date_str = str(st.session_state.target_order_date)
 
+        # 依據所選預訂日期計算該同仁已消費額度
         df_all = st.session_state.orders_data
-        already_spent_today = 0.0
+        already_spent_target_day = 0.0
         if not df_all.empty and "員工姓名" in df_all.columns and "訂購日期" in df_all.columns:
             d_s = df_all["訂購日期"].astype(str).str.replace("-", "/")
-            today_slash = today_str.replace("-", "/")
-            user_today_orders = df_all[(df_all["員工姓名"] == u_name) & (d_s == today_slash)]
-            if not user_today_orders.empty and "小計金額" in user_today_orders.columns:
-                spent_sum = user_today_orders["小計金額"].apply(parse_price).sum()
-                already_spent_today = round(float(spent_sum), 2) if pd.notnull(spent_sum) else 0.0
+            target_slash = chosen_date_str.replace("-", "/")
+            user_target_orders = df_all[(df_all["員工姓名"] == u_name) & (d_s == target_slash)]
+            if not user_target_orders.empty and "小計金額" in user_target_orders.columns:
+                spent_sum = user_target_orders["小計金額"].apply(parse_price).sum()
+                already_spent_target_day = round(float(spent_sum), 2) if pd.notnull(spent_sum) else 0.0
 
-        if u_limit > 0 and already_spent_today >= u_limit:
+        if u_limit > 0 and already_spent_target_day >= u_limit:
             st.markdown(f"""
             <div class="over-limit-box">
-                ⚠️ 【{u_name}】您今日已達到金額上限！<br>
-                本日限定額度：${fmt_price(u_limit)} 元 ｜ 今日已點金額：<b>${fmt_price(already_spent_today)}</b> 元<br>
-                <span style="font-size: 22px; color: #4B5563;">（今日不可再加點其他餐點）</span>
+                ⚠️ 【{u_name}】您在【{chosen_date_str}】已達到金額上限！<br>
+                該日限定額度：${fmt_price(u_limit)} 元 ｜ 已點金額：<b>${fmt_price(already_spent_target_day)}</b> 元<br>
+                <span style="font-size: 22px; color: #4B5563;">（該日不可再加點其他餐點）</span>
             </div>
             """, unsafe_allow_html=True)
 
@@ -495,15 +537,15 @@ with tab1:
             st.markdown('</div>', unsafe_allow_html=True)
 
         else:
-            rem_b = round(u_limit - already_spent_today, 2)
-            limit_txt = f"今日限額：<b>${fmt_price(u_limit)}</b> 元 ｜ 今日已累計：<b>${fmt_price(already_spent_today)}</b> 元 ｜ 剩餘可用：<b style='color:#DC2626;'>${fmt_price(rem_b)}</b> 元" if u_limit > 0 else "今日限額：<b>無限制</b>"
-            st.markdown(f'<div class="budget-tag">👤 目前同仁：<b>{u_name}</b> ｜ {limit_txt}</div>', unsafe_allow_html=True)
+            rem_b = round(u_limit - already_spent_target_day, 2)
+            limit_txt = f"預訂額度：<b>${fmt_price(u_limit)}</b> 元 ｜ 當日已累計：<b>${fmt_price(already_spent_target_day)}</b> 元 ｜ 剩餘可用：<b style='color:#DC2626;'>${fmt_price(rem_b)}</b> 元" if u_limit > 0 else "今日限額：<b>無限制</b>"
+            st.markdown(f'<div class="budget-tag">📅 預訂日期：<b>{chosen_date_str}</b> ｜ 👤 同仁：<b>{u_name}</b> ｜ {limit_txt}</div>', unsafe_allow_html=True)
 
             c_head1, c_head2 = st.columns([3, 1])
             with c_head1:
                 st.markdown('<div class="step-title">今天想吃哪一家？（點選店家大按鈕）</div>', unsafe_allow_html=True)
             with c_head2:
-                if st.button("⬅️ 重選人員", use_container_width=True):
+                if st.button("⬅️ 重選人員／日期", use_container_width=True):
                     reset_to_next_user()
                     st.rerun()
 
@@ -526,30 +568,32 @@ with tab1:
                         st.rerun()
                     st.markdown('</div>', unsafe_allow_html=True)
 
+    # 第三步：挑選餐點
     else:
         u_name = st.session_state.selected_user
         current_store = st.session_state.selected_store
         u_limit = st.session_state.user_limit
+        chosen_date_str = str(st.session_state.target_order_date)
 
         df_all = st.session_state.orders_data
-        already_spent_today = 0.0
+        already_spent_target_day = 0.0
         if not df_all.empty and "員工姓名" in df_all.columns and "訂購日期" in df_all.columns:
             d_s = df_all["訂購日期"].astype(str).str.replace("-", "/")
-            today_slash = today_str.replace("-", "/")
-            user_today_orders = df_all[(df_all["員工姓名"] == u_name) & (d_s == today_slash)]
-            if not user_today_orders.empty and "小計金額" in user_today_orders.columns:
-                spent_sum = user_today_orders["小計金額"].apply(parse_price).sum()
-                already_spent_today = round(float(spent_sum), 2) if pd.notnull(spent_sum) else 0.0
+            target_slash = chosen_date_str.replace("-", "/")
+            user_target_orders = df_all[(df_all["員工姓名"] == u_name) & (d_s == target_slash)]
+            if not user_target_orders.empty and "小計金額" in user_target_orders.columns:
+                spent_sum = user_target_orders["小計金額"].apply(parse_price).sum()
+                already_spent_target_day = round(float(spent_sum), 2) if pd.notnull(spent_sum) else 0.0
 
         cart_sum = round(sum(x["subtotal"] for x in st.session_state.cart), 2)
-        remaining_daily_budget = round(u_limit - already_spent_today - cart_sum, 2) if u_limit > 0 else 999999
+        remaining_daily_budget = round(u_limit - already_spent_target_day - cart_sum, 2) if u_limit > 0 else 999999
 
         if u_limit > 0:
-            limit_info = f"今日限額：<b>${fmt_price(u_limit)}</b> 元 ｜ 今日已點：<b>${fmt_price(already_spent_today)}</b> 元 ｜ 本次還可點：<b style='color:#DC2626;'>${fmt_price(remaining_daily_budget)}</b> 元"
+            limit_info = f"限額：<b>${fmt_price(u_limit)}</b> 元 ｜ 當日已點：<b>${fmt_price(already_spent_target_day)}</b> 元 ｜ 本次還可點：<b style='color:#DC2626;'>${fmt_price(remaining_daily_budget)}</b> 元"
         else:
-            limit_info = "今日限額：<b>無限制</b>"
+            limit_info = "限額：<b>無限制</b>"
 
-        st.markdown(f'<div class="budget-tag">👤 同仁：<b>{u_name}</b> ｜ 🏪 店家：<b>{current_store}</b> ｜ {limit_info}</div>', unsafe_allow_html=True)
+        st.markdown(f'<div class="budget-tag">📅 預訂日期：<b>{chosen_date_str}</b> ｜ 👤 同仁：<b>{u_name}</b> ｜ 🏪 店家：<b>{current_store}</b> ｜ {limit_info}</div>', unsafe_allow_html=True)
 
         with st.container():
             col_t1, col_t2 = st.columns([3, 1])
@@ -578,7 +622,7 @@ with tab1:
                             st.rerun()
 
                 st.write("")
-                if st.button("✅ 我選好了，送出全部餐點！", type="primary", use_container_width=True):
+                if st.button(f"✅ 我選好了，送出【{chosen_date_str}】點餐！", type="primary", use_container_width=True):
                     user_dept = ""
                     if not df_users.empty and "姓名" in df_users.columns:
                         match_u = df_users[df_users["姓名"] == u_name]
@@ -590,7 +634,7 @@ with tab1:
                     for i, it in enumerate(st.session_state.cart):
                         new_rows.append({
                             "訂單編號": f"ORD-{current_len + i + 1:03d}",
-                            "訂購日期": today_str,
+                            "訂購日期": chosen_date_str,
                             "員工編號": "",
                             "員工姓名": u_name,
                             "所屬部門": user_dept,
@@ -772,16 +816,16 @@ with tab1:
         st.markdown('<a href="#top_anchor" class="scroll-top-btn">⬆️ 返回最頂端（查看購物車／重選店家）</a>', unsafe_allow_html=True)
 
 # -------------------------------------------------------------
-# 分頁 2：明細與對帳（同步持久化修復）
+# 分頁 2：明細與對帳
 # -------------------------------------------------------------
 with tab2:
     st.subheader("📊 每日點餐明細與收款找零對帳")
 
     c_q1, c_q2, c_q3 = st.columns([2, 1, 1])
     with c_q1:
-        query_date = st.date_input("選擇欲對帳或查詢的日期", value=date.today())
+        query_date = st.date_input("選擇欲對帳或查詢的日期", value=st.session_state.target_order_date)
     with c_q2:
-        filter_mode = st.radio("檢視模式", ["📅 依所選日期", "📋 顯示全部訂單"], index=1, horizontal=True)
+        filter_mode = st.radio("檢視模式", ["📅 依所選日期", "📋 顯示全部訂單"], index=0, horizontal=True)
     with c_q3:
         st.write("")
         if st.button("🔄 重新從雲端抓取", type="primary"):
@@ -804,7 +848,7 @@ with tab2:
             current_orders = all_orders[date_mask].copy()
 
         if current_orders.empty:
-            st.warning(f"⚠️ 在【{query_date}】查無點單紀錄。（請點選上方「📋 顯示全部訂單」確認）")
+            st.warning(f"⚠️ 在【{query_date}】查無點單紀錄。（若有預訂其他日期，可切換上方日期或點選「📋 顯示全部訂單」）")
         else:
             current_orders["金額數值"] = current_orders["小計金額"].apply(parse_price)
             total_money = round(current_orders["金額數值"].sum(), 2)
@@ -924,10 +968,11 @@ with tab2:
                         ed_c1, ed_c2 = st.columns(2)
                         with ed_c1:
                             new_name = st.text_input("同仁姓名", value=str(orig.get("員工姓名", "")))
+                            new_date = st.text_input("用餐/訂單日期", value=str(orig.get("訂購日期", "")))
                             new_item = st.text_input("餐點品項", value=str(orig.get("餐點品項", "")))
                             new_qty = st.number_input("數量", min_value=1, value=int(parse_price(orig.get("數量", 1)) or 1), step=1)
-                            new_price = st.number_input("小計金額 (元)", min_value=0.0, value=float(parse_price(orig.get("小計金額", 0))), step=0.5)
                         with ed_c2:
+                            new_price = st.number_input("小計金額 (元)", min_value=0.0, value=float(parse_price(orig.get("小計金額", 0))), step=0.5)
                             new_noodle = st.text_input("種類 / 麵類選擇", value=str(orig.get("麵類選擇", "標準配置")))
                             new_extra = st.selectbox("是否加麵", ["不加麵", "要加麵 (+15元)"],
                                                     index=0 if "不加" in str(orig.get("是否加麵", "")) else 1)
@@ -938,6 +983,7 @@ with tab2:
                         with btn_sub1:
                             if st.form_submit_button("💾 儲存修改", type="primary", use_container_width=True):
                                 st.session_state.orders_data.loc[e_idx, "員工姓名"] = new_name
+                                st.session_state.orders_data.loc[e_idx, "訂購日期"] = new_date
                                 st.session_state.orders_data.loc[e_idx, "餐點品項"] = new_item
                                 st.session_state.orders_data.loc[e_idx, "數量"] = new_qty
                                 st.session_state.orders_data.loc[e_idx, "麵類選擇"] = new_noodle
@@ -969,6 +1015,7 @@ with tab2:
                     r_c1, r_c2, r_c3, r_c4, r_c5, r_c6 = st.columns([1.5, 2, 3.5, 1.5, 2, 1.5])
                     with r_c1:
                         st.write(f"**{ord_id}**")
+                        st.caption(f"📅 {row_data.get('訂購日期', '')}")
                     with r_c2:
                         st.write(f"👤 **{row_data.get('員工姓名', '')}**")
                     with r_c3:
