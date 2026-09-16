@@ -13,6 +13,28 @@ APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbw0UEIp80umbupbDQkMQA
 SHEET_ID = "1mHnXoG-Duq45EvwZTRVuq86rsK8T5DA9NkLnOi30wuM"
 ORDERS_GID = "1002"
 
+# 取得當週（週一至週五）的動態日期清單
+def get_current_workweek_dates():
+    today = date.today()
+    # 如果今天是週六(5)或週日(6)，自動順延為「下週一」到「下週五」
+    if today.weekday() >= 5:
+        monday = today + timedelta(days=(7 - today.weekday()))
+    else:
+        monday = today - timedelta(days=today.weekday())
+    
+    workweek = []
+    weekdays_zh = ["週一", "週二", "週三", "週四", "週五"]
+    for i in range(5):
+        d = monday + timedelta(days=i)
+        is_today = (d == today)
+        label = f"{'🌟 ' if is_today else ''}{weekdays_zh[i]}\n{d.strftime('%m/%d')}"
+        workweek.append({
+            "date": d,
+            "label": label,
+            "is_today": is_today
+        })
+    return workweek
+
 def get_category_visual(cat_name):
     cat_str = str(cat_name).strip()
     if "全部" in cat_str:
@@ -75,14 +97,48 @@ st.markdown("""
         line-height: 1.3 !important;
     }
 
-    /* 預訂日期大卡片容器 */
+    /* 預訂日期週一至週五大按鈕容器 */
     .date-picker-box {
         background-color: #FFFFFF;
         border: 2.5px solid #3B82F6;
         border-radius: 18px;
-        padding: 16px 20px;
+        padding: 18px 20px;
         margin-bottom: 22px;
-        box-shadow: 0 4px 12px rgba(59,130,246,0.12);
+        box-shadow: 0 4px 14px rgba(59,130,246,0.12);
+    }
+    
+    /* 週一至週五大按鍵樣式 */
+    .weekday-btn button {
+        width: 100% !important;
+        min-height: 82px !important;
+        font-size: 24px !important;
+        font-weight: 900 !important;
+        border-radius: 16px !important;
+        border: 2.5px solid #94A3B8 !important;
+        background-color: #F8FAFC !important;
+        color: #1E293B !important;
+        box-shadow: 0 3px 6px rgba(0,0,0,0.06) !important;
+        transition: all 0.15s ease-in-out !important;
+        white-space: pre-line !important;
+        line-height: 1.2 !important;
+    }
+    .weekday-btn button:hover {
+        border-color: #2563EB !important;
+        background-color: #EFF6FF !important;
+        transform: translateY(-2px);
+    }
+    .weekday-btn-active button {
+        width: 100% !important;
+        min-height: 82px !important;
+        font-size: 24px !important;
+        font-weight: 900 !important;
+        border-radius: 16px !important;
+        border: 3.5px solid #1D4ED8 !important;
+        background: linear-gradient(135deg, #2563EB 0%, #1D4ED8 100%) !important;
+        color: #FFFFFF !important;
+        box-shadow: 0 4px 12px rgba(37,99,235,0.35) !important;
+        white-space: pre-line !important;
+        line-height: 1.2 !important;
     }
 
     .user-btn button {
@@ -434,13 +490,12 @@ tab1, tab2, tab3, tab4 = st.tabs([
 ])
 
 # -------------------------------------------------------------
-# 分頁 1：友善大圖點餐（加入預訂點單日期選擇）
+# 分頁 1：友善大圖點餐（週一至週五動態按鈕選單）
 # -------------------------------------------------------------
 with tab1:
     today_obj = date.today()
-    tomorrow_obj = today_obj + timedelta(days=1)
+    workweek_list = get_current_workweek_dates()
     
-    # 點餐完成畫面
     if st.session_state.order_finished:
         pay_amount = st.session_state.last_paid_amount
         chosen_date_str = str(st.session_state.target_order_date)
@@ -457,29 +512,38 @@ with tab1:
             st.rerun()
         st.markdown('</div>', unsafe_allow_html=True)
 
-    # 第一步：選擇預訂日期與姓名
+    # 第一步：選擇預訂日期（週一～週五大按鈕）與姓名
     elif st.session_state.selected_user is None:
-        # 預訂日期選擇區塊
         st.markdown('<div class="date-picker-box">', unsafe_allow_html=True)
-        st.markdown("<div style='font-size: 26px; font-weight: 900; color: #1E3A8A; margin-bottom: 10px;'>📅 請選擇預訂用餐日期：</div>", unsafe_allow_html=True)
+        st.markdown("<div style='font-size: 26px; font-weight: 900; color: #1E3A8A; margin-bottom: 12px;'>📅 請點選你想預訂哪一天的午餐：</div>", unsafe_allow_html=True)
         
-        d_col1, d_col2, d_col3 = st.columns([1.2, 1, 2])
-        with d_col1:
-            if st.button(f"☀️ 今日 ({today_obj.strftime('%m/%d')})", use_container_width=True):
-                st.session_state.target_order_date = today_obj
-                st.rerun()
-        with d_col2:
-            if st.button(f"🌙 明日 ({tomorrow_obj.strftime('%m/%d')})", use_container_width=True):
-                st.session_state.target_order_date = tomorrow_obj
-                st.rerun()
-        with d_col3:
-            custom_date = st.date_input("或挑選指定日期", value=st.session_state.target_order_date, key="custom_date_input", label_visibility="collapsed")
+        # 展開週一到週五的 5 個大按鈕
+        w_cols = st.columns(5)
+        for w_idx, w_item in enumerate(workweek_list):
+            w_date = w_item["date"]
+            w_label = w_item["label"]
+            is_selected = (st.session_state.target_order_date == w_date)
+            btn_class = "weekday-btn-active" if is_selected else "weekday-btn"
+
+            with w_cols[w_idx]:
+                st.markdown(f'<div class="{btn_class}">', unsafe_allow_html=True)
+                if st.button(w_label, key=f"btn_w_{w_idx}_{w_date.strftime('%Y%m%d')}"):
+                    st.session_state.target_order_date = w_date
+                    st.rerun()
+                st.markdown('</div>', unsafe_allow_html=True)
+
+        chosen_date_str = str(st.session_state.target_order_date)
+        
+        # 輔助：挑選跨週或其他指定日期
+        c_sub1, c_sub2 = st.columns([3, 1])
+        with c_sub1:
+            st.markdown(f"<div style='font-size:22px; font-weight:bold; color:#059669; margin-top:10px;'>👉 目前預訂點餐日期為：<span style='font-size:28px; text-decoration:underline;'>{chosen_date_str}</span></div>", unsafe_allow_html=True)
+        with c_sub2:
+            custom_date = st.date_input("跨週挑選其他日期", value=st.session_state.target_order_date, key="custom_date_input")
             if custom_date != st.session_state.target_order_date:
                 st.session_state.target_order_date = custom_date
                 st.rerun()
-                
-        chosen_date_str = str(st.session_state.target_order_date)
-        st.markdown(f"<div style='font-size:22px; font-weight:bold; color:#059669; margin-top:8px;'>👉 目前預訂點餐日期為：<span style='font-size:26px; text-decoration:underline;'>{chosen_date_str}</span></div>", unsafe_allow_html=True)
+
         st.markdown('</div>', unsafe_allow_html=True)
 
         st.markdown('<div class="step-title">請問你是誰？（點選名字按鈕）</div>', unsafe_allow_html=True)
@@ -510,7 +574,6 @@ with tab1:
         u_limit = st.session_state.user_limit
         chosen_date_str = str(st.session_state.target_order_date)
 
-        # 依據所選預訂日期計算該同仁已消費額度
         df_all = st.session_state.orders_data
         already_spent_target_day = 0.0
         if not df_all.empty and "員工姓名" in df_all.columns and "訂購日期" in df_all.columns:
