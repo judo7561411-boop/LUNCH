@@ -13,7 +13,6 @@ APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbw0UEIp80umbupbDQkMQA
 SHEET_ID = "1mHnXoG-Duq45EvwZTRVuq86rsK8T5DA9NkLnOi30wuM"
 ORDERS_GID = "1002"
 
-# 取得當週（週一至週五）的動態日期清單
 def get_current_workweek_dates():
     today = date.today()
     if today.weekday() >= 5:
@@ -317,7 +316,6 @@ st.markdown("""
         margin-bottom: 14px; padding-bottom: 10px; border-bottom: 1px solid #F1F5F9;
     }
 
-    /* 獨立出單單據視覺 */
     .receipt-box {
         background-color: #FFFFFF;
         border: 2px dashed #475569;
@@ -537,7 +535,6 @@ with tab1:
             st.rerun()
         st.markdown('</div>', unsafe_allow_html=True)
 
-    # 階段 0：先點選「預訂日期」
     elif not st.session_state.date_confirmed:
         st.markdown('<div class="date-picker-box">', unsafe_allow_html=True)
         st.markdown("<div style='font-size: 30px; font-weight: 900; color: #1E3A8A; margin-bottom: 16px;'>📅 第一步：請問你想預訂哪一天的午餐？（點選按鈕立即開始）</div>", unsafe_allow_html=True)
@@ -570,7 +567,6 @@ with tab1:
 
         st.markdown('</div>', unsafe_allow_html=True)
 
-    # 階段 1：選擇同仁姓名
     elif st.session_state.selected_user is None:
         chosen_date_str = str(st.session_state.target_order_date)
         
@@ -607,7 +603,6 @@ with tab1:
                         st.rerun()
                     st.markdown('</div>', unsafe_allow_html=True)
 
-    # 階段 2：選擇店家
     elif st.session_state.selected_store is None:
         u_name = st.session_state.selected_user
         u_limit = st.session_state.user_limit
@@ -672,7 +667,6 @@ with tab1:
                         st.rerun()
                     st.markdown('</div>', unsafe_allow_html=True)
 
-    # 階段 3：挑選餐點
     else:
         u_name = st.session_state.selected_user
         current_store = st.session_state.selected_store
@@ -920,7 +914,7 @@ with tab1:
         st.markdown('<a href="#top_anchor" class="scroll-top-btn">⬆️ 返回最頂端（查看購物車／重選店家）</a>', unsafe_allow_html=True)
 
 # -------------------------------------------------------------
-# 分頁 2：每日收款對帳
+# 分頁 2：每日收款對帳（含持久化修改與刪除）
 # -------------------------------------------------------------
 with tab2:
     st.subheader("💵 每日點餐明細與收款找零對帳")
@@ -977,7 +971,7 @@ with tab2:
                 unpaid_list = current_orders[current_orders["付款狀態"] != "已付款"]
                 
                 if unpaid_list.empty:
-                    st.success("🎉 目前檢視範圍內的所有訂單皆已全數收款完畢！可以切換到【🖨️ 每日出單彙整】分頁進行出單！")
+                    st.success("🎉 目前檢視範圍內的所有訂單皆已全數收款完畢！可以切換到【🖨️ 每日出單彙整】分頁出單。")
                 else:
                     user_options = unpaid_list["員工姓名"].dropna().unique().tolist()
                     calc_col1, calc_col2 = st.columns([1, 1])
@@ -1065,6 +1059,7 @@ with tab2:
 
             st.write("---")
             
+            # 單筆編輯表單（雲端持久化儲存）
             if st.session_state.edit_row_idx is not None:
                 e_idx = st.session_state.edit_row_idx
                 if e_idx in st.session_state.orders_data.index:
@@ -1087,25 +1082,35 @@ with tab2:
 
                         btn_sub1, btn_sub2 = st.columns(2)
                         with btn_sub1:
-                            if st.form_submit_button("💾 儲存修改", type="primary", use_container_width=True):
-                                st.session_state.orders_data.loc[e_idx, "員工姓名"] = new_name
-                                st.session_state.orders_data.loc[e_idx, "訂購日期"] = new_date
-                                st.session_state.orders_data.loc[e_idx, "餐點品項"] = new_item
-                                st.session_state.orders_data.loc[e_idx, "數量"] = new_qty
-                                st.session_state.orders_data.loc[e_idx, "麵類選擇"] = new_noodle
-                                st.session_state.orders_data.loc[e_idx, "是否加麵"] = new_extra
-                                st.session_state.orders_data.loc[e_idx, "小計金額"] = f"${fmt_price(new_price)}"
-                                st.session_state.orders_data.loc[e_idx, "付款狀態"] = new_status
+                            if st.form_submit_button("💾 儲存修改並同步雲端", type="primary", use_container_width=True):
+                                updated_row_dict = {
+                                    "訂單編號": str(orig.get("訂單編號", "")),
+                                    "訂購日期": new_date,
+                                    "員工編號": str(orig.get("員工編號", "")),
+                                    "員工姓名": new_name,
+                                    "所屬部門": str(orig.get("所屬部門", "")),
+                                    "餐點品項": new_item,
+                                    "麵類選擇": new_noodle,
+                                    "是否加麵": new_extra,
+                                    "單價": f"${fmt_price(new_price / new_qty)}",
+                                    "數量": new_qty,
+                                    "小計金額": f"${fmt_price(new_price)}",
+                                    "付款狀態": new_status
+                                }
                                 
-                                with st.spinner("正在同步修改至雲端..."):
+                                for k, v in updated_row_dict.items():
+                                    st.session_state.orders_data.loc[e_idx, k] = v
+
+                                with st.spinner("正在將修改完整同步至雲端試算表..."):
                                     sync_to_google_sheet({
-                                        "action": "update_status",
+                                        "action": "edit_order",
                                         "order_id": str(orig.get("訂單編號", "")),
-                                        "user": new_name,
-                                        "status": new_status
+                                        "orig_user": str(orig.get("員工姓名", "")),
+                                        "row": updated_row_dict
                                     })
+                                
                                 st.session_state.edit_row_idx = None
-                                st.success("訂單修改完成！")
+                                st.success("訂單修改已永久儲存至雲端！")
                                 time.sleep(0.5)
                                 st.rerun()
                         with btn_sub2:
@@ -1162,9 +1167,25 @@ with tab2:
                                 st.session_state.edit_row_idx = row_idx
                                 st.rerun()
                         with c_ed2:
-                            if st.button("🗑️", key=f"btn_rm_{row_idx}_{ord_id}", help="刪除這筆訂單"):
+                            if st.button("🗑️", key=f"btn_rm_{row_idx}_{ord_id}", help="刪除這筆訂單並同步雲端"):
+                                target_ord = str(ord_id)
+                                target_u = str(row_data.get("員工姓名", ""))
+                                target_d = str(row_data.get("訂購日期", ""))
+                                target_it = str(row_data.get("餐點品項", ""))
+                                
                                 st.session_state.orders_data.drop(row_idx, inplace=True)
                                 st.session_state.orders_data.reset_index(drop=True, inplace=True)
+                                
+                                with st.spinner(f"正在從雲端刪除【{target_u} - {target_it}】..."):
+                                    sync_to_google_sheet({
+                                        "action": "delete_order",
+                                        "order_id": target_ord,
+                                        "user": target_u,
+                                        "date": target_d,
+                                        "item": target_it
+                                    })
+                                st.success("訂單已從雲端成功刪除！")
+                                time.sleep(0.4)
                                 st.rerun()
                     st.markdown('</div>', unsafe_allow_html=True)
 
@@ -1208,13 +1229,11 @@ with tab3:
             unpaid_cnt = len(unpaid_subset)
             unpaid_sum = round(unpaid_subset["金額數值"].sum(), 2)
 
-            # 付款狀況提示
             if unpaid_cnt == 0:
                 st.success(f"🎉【{order_out_date}】全體同仁皆已完成付款！可直接放心出單給店家。")
             else:
-                st.warning(f"⚠️ 注意：尚有 {unpaid_cnt} 筆訂單尚未付款（待收 ${fmt_price(unpaid_sum)} 元），請至【💵 每日收款對帳】完成收錢。")
+                st.warning(f"⚠️ 提醒：尚有 {unpaid_cnt} 筆訂單尚未付款（待收 ${fmt_price(unpaid_sum)} 元），請先至【💵 每日收款對帳】完成收款！")
 
-            # 規格彙整名稱
             def make_spec_name(r):
                 item = str(r.get("餐點品項", "")).strip()
                 nd = str(r.get("麵類選擇", "")).strip()
@@ -1242,7 +1261,6 @@ with tab3:
             }).reset_index()
             person_grouped.columns = ["同仁姓名", "點購餐點品項明細", "應付小計", "付款狀態"]
 
-            # LINE 純文字清單
             line_order_text = f"【午餐訂單 - {order_out_date}】\n--------------------\n"
             line_order_text += "【餐點彙整清單】\n"
             for _, s_row in summary_grouped.iterrows():
@@ -1250,7 +1268,6 @@ with tab3:
             line_order_text += "--------------------\n"
             line_order_text += f"總計：{total_portions} 份\n總金額：${fmt_price(total_money)} 元\n"
 
-            # 單據抬頭
             st.markdown(f"""
             <div class="receipt-box" id="print-area">
                 <div class="receipt-header">
@@ -1275,7 +1292,6 @@ with tab3:
             with st.expander("📲 點此展開「LINE 一鍵複製店家格式」文字", expanded=False):
                 st.text_area("直接複製以下文字傳給店家即可：", value=line_order_text, height=220)
 
-            # 列印輔助按鈕
             c_p1, c_p2 = st.columns([1, 3])
             with c_p1:
                 st.button("🖨️ 列印此出單表 (PDF)", on_click=lambda: st.components.v1.html("<script>window.print();</script>", height=0))
