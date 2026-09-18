@@ -13,6 +13,7 @@ APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbw0UEIp80umbupbDQkMQA
 SHEET_ID = "1mHnXoG-Duq45EvwZTRVuq86rsK8T5DA9NkLnOi30wuM"
 ORDERS_GID = "1002"
 
+# 取得當週（週一至週五）的動態日期清單
 def get_current_workweek_dates():
     today = date.today()
     if today.weekday() >= 5:
@@ -220,10 +221,11 @@ st.markdown("""
         box-shadow: 0 5px 14px rgba(37,99,235,0.35) !important;
     }
 
+    /* 餐點卡片容器 */
     .food-card {
-        background-color: #FFFFFF; border: 2.5px solid #E2E8F0;
-        border-radius: 20px; padding: 20px; margin-bottom: 20px;
-        box-shadow: 0 4px 10px rgba(0,0,0,0.06);
+        background-color: #FFFFFF; border: 2.5px solid #CBD5E1;
+        border-radius: 20px; padding: 22px; margin-bottom: 22px;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.06);
     }
     
     .qty-control button {
@@ -244,17 +246,23 @@ st.markdown("""
         border: 2px solid #CBD5E1;
     }
     
-    .add-cart-btn button {
-        width: 100% !important; min-height: 72px !important;
-        font-size: 26px !important; font-weight: 900 !important;
-        border-radius: 18px !important;
-        background-color: #10B981 !important;
-        border: 2.5px solid #059669 !important;
+    /* 直接點擊商品名稱加入選購的立體大按鈕 */
+    .direct-add-item-btn button {
+        width: 100% !important; min-height: 90px !important;
+        font-size: 28px !important; font-weight: 900 !important;
+        border-radius: 20px !important;
+        background: linear-gradient(135deg, #10B981 0%, #059669 100%) !important;
+        border: 3px solid #047857 !important;
         color: #FFFFFF !important;
-        box-shadow: 0 5px 10px rgba(16,185,129,0.22) !important;
+        box-shadow: 0 6px 14px rgba(16,185,129,0.3) !important;
+        transition: all 0.15s ease-in-out !important;
+        white-space: pre-line !important;
+        line-height: 1.3 !important;
     }
-    .add-cart-btn button:hover {
-        background-color: #059669 !important;
+    .direct-add-item-btn button:hover {
+        background: linear-gradient(135deg, #059669 0%, #047857 100%) !important;
+        transform: translateY(-2px);
+        box-shadow: 0 8px 18px rgba(4,120,87,0.38) !important;
     }
 
     .budget-tag {
@@ -293,13 +301,25 @@ st.markdown("""
     }
     .scroll-top-btn:hover { background-color: #0369A1; }
 
+    /* 懸浮回頂部按鈕移至【左下角】 */
     .float-top-btn {
-        position: fixed; bottom: 25px; right: 25px; z-index: 99999;
-        background-color: #0284C7; color: white !important;
-        width: 70px; height: 70px; border-radius: 50%;
-        display: flex; align-items: center; justify-content: center;
-        font-size: 30px; font-weight: bold; text-decoration: none;
-        box-shadow: 0 4px 14px rgba(0,0,0,0.32);
+        position: fixed;
+        bottom: 25px;
+        left: 25px;
+        z-index: 99999;
+        background-color: #0284C7;
+        color: white !important;
+        width: 72px;
+        height: 72px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 32px;
+        font-weight: bold;
+        text-decoration: none;
+        box-shadow: 0 5px 16px rgba(0,0,0,0.35);
+        border: 2.5px solid #FFFFFF;
     }
     .float-top-btn:hover { background-color: #0369A1; }
 
@@ -340,8 +360,9 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
+# 頂部錨點與【左下角】浮動回頂按鈕
 st.markdown('<div id="top_anchor"></div>', unsafe_allow_html=True)
-st.markdown('<a href="#top_anchor" class="float-top-btn" title="回頂部">⬆️</a>', unsafe_allow_html=True)
+st.markdown('<a href="#top_anchor" class="float-top-btn" title="回頂端">⬆️</a>', unsafe_allow_html=True)
 
 SVG_100 = """<svg width="180" height="90" viewBox="0 0 180 90" xmlns="http://www.w3.org/2000/svg" style="border-radius:6px; box-shadow:2px 3px 6px rgba(0,0,0,0.3); margin:4px;"><rect width="180" height="90" rx="6" fill="#C53030"/><rect x="4" y="4" width="172" height="82" rx="4" fill="none" stroke="#FED7D7" stroke-width="1.5" stroke-dasharray="4,2"/><circle cx="45" cy="45" r="22" fill="#9B2C2C"/><circle cx="45" cy="45" r="18" fill="none" stroke="#FEB2B2" stroke-width="1"/><text x="45" y="52" font-family="sans-serif" font-size="20" font-weight="bold" fill="#FED7D7" text-anchor="middle">100</text><text x="135" y="55" font-family="sans-serif" font-size="44" font-weight="900" fill="#FFFFFF" text-anchor="middle">100</text><text x="90" y="22" font-family="sans-serif" font-size="12" font-weight="bold" fill="#FED7D7" text-anchor="middle">中華民國中央銀行</text><text x="135" y="75" font-family="sans-serif" font-size="14" font-weight="bold" fill="#FEEBC8" text-anchor="middle">壹佰圓</text></svg>"""
 SVG_50 = """<svg width="84" height="84" viewBox="0 0 84 84" xmlns="http://www.w3.org/2000/svg" style="filter: drop-shadow(2px 3px 4px rgba(0,0,0,0.35)); margin:4px;"><circle cx="42" cy="42" r="40" fill="#D69E2E" stroke="#744210" stroke-width="2"/><circle cx="42" cy="42" r="34" fill="#ECC94B" stroke="#B7791F" stroke-width="1.5"/><circle cx="42" cy="42" r="26" fill="#D69E2E"/><text x="42" y="49" font-family="sans-serif" font-size="28" font-weight="900" fill="#5A3207" text-anchor="middle">50</text><text x="42" y="61" font-family="sans-serif" font-size="11" font-weight="bold" fill="#744210" text-anchor="middle">圓</text></svg>"""
@@ -514,7 +535,7 @@ tab1, tab2, tab3, tab4, tab5 = st.tabs([
 ])
 
 # -------------------------------------------------------------
-# 分頁 1：友善大圖點餐
+# 分頁 1：友善大圖點餐（點餐按鍵大升級：直接點品名加入）
 # -------------------------------------------------------------
 with tab1:
     workweek_list = get_current_workweek_dates()
@@ -535,6 +556,7 @@ with tab1:
             st.rerun()
         st.markdown('</div>', unsafe_allow_html=True)
 
+    # 階段 0：先點選「預訂日期」
     elif not st.session_state.date_confirmed:
         st.markdown('<div class="date-picker-box">', unsafe_allow_html=True)
         st.markdown("<div style='font-size: 30px; font-weight: 900; color: #1E3A8A; margin-bottom: 16px;'>📅 第一步：請問你想預訂哪一天的午餐？（點選按鈕立即開始）</div>", unsafe_allow_html=True)
@@ -567,6 +589,7 @@ with tab1:
 
         st.markdown('</div>', unsafe_allow_html=True)
 
+    # 階段 1：選擇同仁姓名
     elif st.session_state.selected_user is None:
         chosen_date_str = str(st.session_state.target_order_date)
         
@@ -603,6 +626,7 @@ with tab1:
                         st.rerun()
                     st.markdown('</div>', unsafe_allow_html=True)
 
+    # 階段 2：選擇店家
     elif st.session_state.selected_store is None:
         u_name = st.session_state.selected_user
         u_limit = st.session_state.user_limit
@@ -667,6 +691,7 @@ with tab1:
                         st.rerun()
                     st.markdown('</div>', unsafe_allow_html=True)
 
+    # 階段 3：挑選餐點（直覺大按鈕）
     else:
         u_name = st.session_state.selected_user
         current_store = st.session_state.selected_store
@@ -803,7 +828,7 @@ with tab1:
                 continue
             displayed_items.append((row, base_p))
 
-        st.markdown(f'<div class="step-title">{chosen_visual} 的餐點項目</div>', unsafe_allow_html=True)
+        st.markdown(f'<div class="step-title">{chosen_visual} 的餐點項目（點選綠色按鈕即可點這道）</div>', unsafe_allow_html=True)
 
         if not displayed_items:
             st.warning(f"⚠️ 【{selected_cat_clean}】沒有符合您剩餘預算的餐點，或品項已達金額上限！")
@@ -837,12 +862,7 @@ with tab1:
 
                 with cols[idx % 2]:
                     with st.container():
-                        st.markdown(f"""
-                        <div class="food-card">
-                            <h3 style="margin-top:0; margin-bottom:6px; color:#0F172A;">🍲 {item_name}</h3>
-                            <div style="font-size:24px; color:#475569; margin-bottom:14px;">單價：<b style="color:#059669; font-size:28px;">${fmt_price(base_p)} 元</b></div>
-                        </div>
-                        """, unsafe_allow_html=True)
+                        st.markdown('<div class="food-card">', unsafe_allow_html=True)
                         
                         st.write(f"**👉 選擇{select_label}：**")
                         nd_choice = st.radio(
@@ -893,11 +913,16 @@ with tab1:
                         total_item_price = round(single_unit_price * cur_qty, 2)
 
                         can_add = (u_limit == 0) or (total_item_price <= remaining_daily_budget)
-                        btn_txt = f"➕ 加入點餐 ({cur_qty}份，共 ${fmt_price(total_item_price)} 元)" if can_add else f"❌ 超出今日限額 (${fmt_price(total_item_price)} 元)"
+                        
+                        # 直接整合為「點選商品名稱大按鈕加入」
+                        if can_add:
+                            item_btn_label = f"🍲 點這道：{item_name}\n（{cur_qty}份，共 ${fmt_price(total_item_price)} 元）"
+                        else:
+                            item_btn_label = f"❌ 超出今日限定額度\n（${fmt_price(total_item_price)} 元）"
 
                         st.write("")
-                        st.markdown('<div class="add-cart-btn">', unsafe_allow_html=True)
-                        if st.button(btn_txt, key=safe_key("add_btn", item_name, idx), disabled=not can_add):
+                        st.markdown('<div class="direct-add-item-btn">', unsafe_allow_html=True)
+                        if st.button(item_btn_label, key=safe_key("direct_add_btn", item_name, idx), disabled=not can_add):
                             st.session_state.cart.append({
                                 "item": item_name,
                                 "unit_price": single_unit_price,
@@ -909,12 +934,13 @@ with tab1:
                             st.session_state[qty_key] = 1
                             st.rerun()
                         st.markdown('</div>', unsafe_allow_html=True)
-                        st.write("---")
+
+                        st.markdown('</div>', unsafe_allow_html=True)
 
         st.markdown('<a href="#top_anchor" class="scroll-top-btn">⬆️ 返回最頂端（查看購物車／重選店家）</a>', unsafe_allow_html=True)
 
 # -------------------------------------------------------------
-# 分頁 2：每日收款對帳（含持久化修改與刪除）
+# 分頁 2：每日收款對帳
 # -------------------------------------------------------------
 with tab2:
     st.subheader("💵 每日點餐明細與收款找零對帳")
@@ -1030,7 +1056,7 @@ with tab2:
                                 if c50 > 0:
                                     board_html += f"<div class='money-group-row'>{''.join([SVG_50 for _ in range(c50)])}</div>"
                                 if c10 > 0:
-                                    board_html += f"<div class='money-group-row'>{''.join([SVG_10 for _ in range(c10)])}</div>"
+                                    board_html += f"<div class='money-group-row'>{''.join([SVG_100 for _ in range(c10)])}</div>"
                                 if c5 > 0:
                                     board_html += f"<div class='money-group-row'>{''.join([SVG_5 for _ in range(c5)])}</div>"
                                 if c1 > 0:
@@ -1059,7 +1085,7 @@ with tab2:
 
             st.write("---")
             
-            # 單筆編輯表單（雲端持久化儲存）
+            # 單筆編輯表單
             if st.session_state.edit_row_idx is not None:
                 e_idx = st.session_state.edit_row_idx
                 if e_idx in st.session_state.orders_data.index:
@@ -1190,7 +1216,7 @@ with tab2:
                     st.markdown('</div>', unsafe_allow_html=True)
 
 # -------------------------------------------------------------
-# 分頁 3：🖨️ 每日出單彙整（獨立專屬分頁）
+# 分頁 3：🖨️ 每日出單彙整
 # -------------------------------------------------------------
 with tab3:
     st.subheader("🖨️ 中餐訂單出單與分發彙整表")
@@ -1232,7 +1258,7 @@ with tab3:
             if unpaid_cnt == 0:
                 st.success(f"🎉【{order_out_date}】全體同仁皆已完成付款！可直接放心出單給店家。")
             else:
-                st.warning(f"⚠️ 提醒：尚有 {unpaid_cnt} 筆訂單尚未付款（待收 ${fmt_price(unpaid_sum)} 元），請先至【💵 每日收款對帳】完成收款！")
+                st.warning(f"⚠️ 注意：尚有 {unpaid_cnt} 筆訂單尚未付款（待收 ${fmt_price(unpaid_sum)} 元），請先至【💵 每日收款對帳】完成收款！")
 
             def make_spec_name(r):
                 item = str(r.get("餐點品項", "")).strip()
@@ -1248,12 +1274,10 @@ with tab3:
 
             out_day_orders["餐點規格彙整"] = out_day_orders.apply(make_spec_name, axis=1)
 
-            # 1. 店家品項加總總表
             summary_grouped = out_day_orders.groupby("餐點規格彙整")["數量數值"].sum().reset_index()
             summary_grouped.columns = ["餐點項目與規格", "總數量 (份)"]
             summary_grouped = summary_grouped.sort_values(by="總數量 (份)", ascending=False)
 
-            # 2. 個人分發核對名單
             person_grouped = out_day_orders.groupby("員工姓名").agg({
                 "餐點規格彙整": lambda x: "、".join(f"{item} x{qty}" if qty > 1 else item for item, qty in zip(x, out_day_orders.loc[x.index, "數量數值"])),
                 "金額數值": "sum",
