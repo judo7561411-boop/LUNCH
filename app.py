@@ -35,6 +35,19 @@ def get_current_workweek_dates():
         workweek.append({"date": d, "label": label, "is_today": is_today})
     return workweek
 
+def get_category_icon(cat_name):
+    cat_str = str(cat_name).strip()
+    if "全部" in cat_str: return f"🍽️ {cat_str}"
+    elif "便當" in cat_str: return f"🍱 {cat_str}"
+    elif "水餃" in cat_str: return f"🥟 {cat_str}"
+    elif "鍋貼" in cat_str: return f"🥟🔥 {cat_str}"
+    elif "湯" in cat_str: return f"🥣 {cat_str}"
+    elif "飯" in cat_str: return f"🍚 {cat_str}"
+    elif "麵" in cat_str or "意麵" in cat_str or "冬粉" in cat_str: return f"🍜 {cat_str}"
+    elif "飲" in cat_str or "茶" in cat_str: return f"🥤 {cat_str}"
+    elif "小菜" in cat_str or "切" in cat_str or "炸" in cat_str: return f"🥗 {cat_str}"
+    else: return f"🥢 {cat_str}"
+
 def get_food_aac_icon(item_name, category=""):
     s = f"{item_name} {category}"
     if "鍋貼" in s: return "🥟🔥"
@@ -79,7 +92,6 @@ st.markdown("""
         margin-bottom: 20px;
     }
 
-    /* 點餐大方塊按鈕：加大視覺與觸控回饋 */
     .direct-touch-tile button {
         width: 100% !important;
         min-height: 150px !important;
@@ -102,7 +114,6 @@ st.markdown("""
         box-shadow: 0 10px 22px rgba(29,78,216,0.25) !important;
     }
 
-    /* 規格彈出方塊 */
     .pos-focus-card {
         background-color: #FFFFFF;
         border: 5px solid #F59E0B;
@@ -112,7 +123,6 @@ st.markdown("""
         box-shadow: 0 12px 30px rgba(0,0,0,0.18);
     }
 
-    /* 橫式選項大方塊按鈕 */
     .h-option-btn button {
         width: 100% !important; min-height: 85px !important;
         font-size: 24px !important; font-weight: 900 !important;
@@ -137,7 +147,6 @@ st.markdown("""
         border: 2.5px solid #CBD5E1;
     }
 
-    /* 鮮豔亮橘色大按鈕 */
     div[data-testid="stButton"] button[kind="primary"] {
         width: 100% !important;
         min-height: 90px !important;
@@ -212,7 +221,7 @@ st.markdown("""
 
     .money-visual-board {
         background-color: #FFFFFF; border: 3px dashed #60A5FA;
-        border-radius: 18px; padding: 20px; margin-top: 14px; margin-bottom: 14px;
+        border-radius: 16px; padding: 20px; margin-top: 14px; margin-bottom: 14px;
     }
     .money-group-row {
         display: flex; flex-wrap: wrap; align-items: center; gap: 14px;
@@ -803,7 +812,6 @@ with tab1:
             else:
                 st.info(f"這個分類【{active_cat}】沒有符合您剩餘預算的食物喔。")
         else:
-            # POS 機 2 欄超大方塊，觸控更容易
             pos_cols = st.columns(2)
             for idx, item in enumerate(affordable_items):
                 i_name = str(item.get("餐點名稱", "")).strip()
@@ -832,7 +840,6 @@ with tab1:
                     st.markdown('<div class="direct-touch-tile">', unsafe_allow_html=True)
                     if st.button(btn_tile_label, key=safe_key("touch_food_tile", i_name, idx)):
                         if has_multiple_options:
-                            # 有多種規格可選，切換至上方展開規格按鈕
                             st.session_state.active_spec_item = {
                                 "name": i_name,
                                 "price": base_p,
@@ -842,7 +849,6 @@ with tab1:
                             play_speech(f"請選擇{i_name}的規格")
                             st.rerun()
                         else:
-                            # 單一規格，直接加入點餐籃！
                             item_data = {
                                 "item": i_name,
                                 "spec": type_options[0],
@@ -946,7 +952,7 @@ with tab2:
                         board_html = "<div class='money-visual-board'>"
                         if c100 > 0: board_html += f"<div class='money-group-row'>{''.join([SVG_100 for _ in range(c100)])}</div>"
                         if c50 > 0: board_html += f"<div class='money-group-row'>{''.join([SVG_50 for _ in range(c50)])}</div>"
-                        if c10 > 0: board_html += f"<div class='money-group-row'>{''.join([SVG_10 for _ in range(c10)])}</div>"
+                        if c10 > 0: board_html += f"<div class='money-group-row'>{''.join([SVG_100 for _ in range(c10)])}</div>"
                         if c5 > 0: board_html += f"<div class='money-group-row'>{''.join([SVG_5 for _ in range(c5)])}</div>"
                         if c1 > 0: board_html += f"<div class='money-group-row'>{''.join([SVG_1 for _ in range(c1)])}</div>"
                         board_html += "</div>"
