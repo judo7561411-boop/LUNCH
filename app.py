@@ -140,22 +140,32 @@ st.markdown("""
         border: 2px solid #CBD5E1;
     }
 
-    /* 專屬亮橘色確認加入按鍵 */
-    .food-order-btn button {
-        width: 100% !important; min-height: 86px !important;
-        font-size: 28px !important; font-weight: 900 !important;
-        border-radius: 20px !important;
+    /* 強制確認加入按鈕為鮮明橘色 */
+    div[data-testid="stButton"] button[kind="primary"],
+    div.food-order-btn button,
+    div.food-order-btn button[kind="primary"],
+    div.food-order-btn button[data-testid="stBaseButton-primary"] {
+        width: 100% !important;
+        min-height: 86px !important;
+        font-size: 26px !important;
+        font-weight: 900 !important;
+        border-radius: 18px !important;
         border: 3px solid #C2410C !important;
-        background: linear-gradient(135deg, #F97316 0%, #EA580C 100%) !important;
+        background: linear-gradient(135deg, #FF6B00 0%, #EA580C 100%) !important;
+        background-color: #FF6B00 !important;
         color: #FFFFFF !important;
-        margin-top: 14px !important; white-space: pre-line !important;
-        box-shadow: 0 6px 14px rgba(234,88,12,0.3) !important;
-        transition: all 0.15s ease-in-out !important;
+        box-shadow: 0 6px 14px rgba(234,88,12,0.4) !important;
+        margin-top: 14px !important;
+        white-space: pre-line !important;
+        line-height: 1.3 !important;
     }
-    .food-order-btn button:hover {
+    div[data-testid="stButton"] button[kind="primary"]:hover,
+    div.food-order-btn button:hover {
         background: linear-gradient(135deg, #EA580C 0%, #C2410C 100%) !important;
+        background-color: #EA580C !important;
+        color: #FFFFFF !important;
+        border-color: #9A3412 !important;
         transform: translateY(-2px);
-        box-shadow: 0 8px 18px rgba(194,65,12,0.38) !important;
     }
 
     /* 餐點種類大切換按鈕 */
@@ -471,7 +481,6 @@ with tab1:
 
         current_store_menu = df_menu[df_menu["店家名稱"] == store_name] if "店家名稱" in df_menu.columns else df_menu
 
-        # 餐點種類按鍵篩選
         st.markdown('<div class="simple-title">📌 餐點種類（點按鈕切換）：</div>', unsafe_allow_html=True)
         category_list = ["全部"]
         if "分類" in current_store_menu.columns:
@@ -585,10 +594,10 @@ with tab1:
                         current_qty = st.session_state[qty_key]
                         current_subtotal = round(current_unit_price * current_qty, 2)
 
-                        # 醒目橘色確認加入按鈕
+                        # 橘色確認加入按鈕
                         order_btn_label = f"🛒 確認加入：{i_name} ({chosen_type})\n{current_qty} 份 ｜ 共 ${fmt_price(current_subtotal)} 元"
                         st.markdown('<div class="food-order-btn">', unsafe_allow_html=True)
-                        if st.button(order_btn_label, key=safe_key("add_order", i_name, idx)):
+                        if st.button(order_btn_label, key=safe_key("add_order", i_name, idx), type="primary"):
                             st.session_state.cart.append({
                                 "item": i_name,
                                 "spec": chosen_type,
