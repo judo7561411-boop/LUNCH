@@ -73,6 +73,7 @@ st.markdown("""
         border-left: 8px solid #3B82F6;
     }
 
+    /* 日期大按鈕 */
     .date-btn button {
         width: 100% !important; min-height: 90px !important;
         font-size: 26px !important; font-weight: 900 !important;
@@ -88,6 +89,7 @@ st.markdown("""
         white-space: pre-line !important;
     }
 
+    /* 人員大按鍵 */
     .user-btn button {
         width: 100% !important; min-height: 95px !important;
         font-size: 28px !important; font-weight: 900 !important;
@@ -96,6 +98,7 @@ st.markdown("""
         margin-bottom: 14px !important;
     }
 
+    /* 店家大按鍵 */
     .store-btn button {
         width: 100% !important; min-height: 95px !important;
         font-size: 28px !important; font-weight: 900 !important;
@@ -104,12 +107,14 @@ st.markdown("""
         margin-bottom: 14px !important;
     }
 
+    /* 餐點大卡片 */
     .food-card {
         background-color: #FFFFFF; border: 2.5px solid #CBD5E1;
         border-radius: 20px; padding: 20px; margin-bottom: 22px;
         box-shadow: 0 4px 12px rgba(0,0,0,0.06);
     }
 
+    /* 種類單選大按鈕 */
     div[data-testid="stRadio"] > div[role="radiogroup"] > label {
         background-color: #F0F9FF !important;
         border: 2px solid #38BDF8 !important;
@@ -121,6 +126,7 @@ st.markdown("""
         color: #0369A1 !important;
     }
 
+    /* 數量加減大按鍵 */
     .qty-btn button {
         font-size: 32px !important; font-weight: 900 !important;
         min-height: 56px !important; width: 100% !important;
@@ -134,6 +140,7 @@ st.markdown("""
         border: 2px solid #CBD5E1;
     }
 
+    /* 專屬亮橘色確認加入按鍵 */
     .food-order-btn button {
         width: 100% !important; min-height: 86px !important;
         font-size: 28px !important; font-weight: 900 !important;
@@ -151,6 +158,7 @@ st.markdown("""
         box-shadow: 0 8px 18px rgba(194,65,12,0.38) !important;
     }
 
+    /* 餐點種類大切換按鈕 */
     .category-filter-btn button {
         width: 100% !important; min-height: 64px !important;
         font-size: 22px !important; font-weight: 900 !important;
@@ -169,6 +177,7 @@ st.markdown("""
         margin-bottom: 8px !important; box-shadow: 0 4px 10px rgba(37,99,235,0.3) !important;
     }
 
+    /* 購物車提示卡 */
     .cart-summary {
         background-color: #FEF3C7; border: 3px solid #F59E0B;
         border-radius: 18px; padding: 18px; font-size: 24px;
@@ -205,6 +214,7 @@ st.markdown("""
         margin-bottom: 18px;
     }
 
+    /* 左下角回頂端浮動圓鈕 */
     .float-top-btn {
         position: fixed; bottom: 25px; left: 25px; z-index: 99999;
         background-color: #0284C7; color: white !important;
@@ -350,6 +360,7 @@ with tab1:
             reset_ordering()
             st.rerun()
 
+    # 步驟 1：選用餐日期與姓名
     elif st.session_state.selected_user is None:
         st.markdown('<div class="simple-title">第 1 步：選擇用餐日期</div>', unsafe_allow_html=True)
         workweek_list = get_current_workweek_dates()
@@ -377,6 +388,7 @@ with tab1:
                         st.rerun()
                     st.markdown('</div>', unsafe_allow_html=True)
 
+    # 步驟 2：選店家
     elif st.session_state.selected_store is None:
         u_name = st.session_state.selected_user
         c1, c2 = st.columns([3, 1])
@@ -399,6 +411,7 @@ with tab1:
                     st.rerun()
                 st.markdown('</div>', unsafe_allow_html=True)
 
+    # 步驟 3：挑選餐點
     else:
         u_name = st.session_state.selected_user
         store_name = st.session_state.selected_store
@@ -413,6 +426,7 @@ with tab1:
                 st.session_state.cart = []
                 st.rerun()
 
+        # 購物車摘要
         if st.session_state.cart:
             cart_total = sum(x["subtotal"] for x in st.session_state.cart)
             item_desc = "、".join([f"{x['item']}({x['spec']}) x{x['qty']}" for x in st.session_state.cart])
@@ -457,6 +471,7 @@ with tab1:
 
         current_store_menu = df_menu[df_menu["店家名稱"] == store_name] if "店家名稱" in df_menu.columns else df_menu
 
+        # 餐點種類按鍵篩選
         st.markdown('<div class="simple-title">📌 餐點種類（點按鈕切換）：</div>', unsafe_allow_html=True)
         category_list = ["全部"]
         if "分類" in current_store_menu.columns:
@@ -570,6 +585,7 @@ with tab1:
                         current_qty = st.session_state[qty_key]
                         current_subtotal = round(current_unit_price * current_qty, 2)
 
+                        # 醒目橘色確認加入按鈕
                         order_btn_label = f"🛒 確認加入：{i_name} ({chosen_type})\n{current_qty} 份 ｜ 共 ${fmt_price(current_subtotal)} 元"
                         st.markdown('<div class="food-order-btn">', unsafe_allow_html=True)
                         if st.button(order_btn_label, key=safe_key("add_order", i_name, idx)):
@@ -588,7 +604,7 @@ with tab1:
                         st.markdown('</div>', unsafe_allow_html=True)
 
 # -------------------------------------------------------------
-# 分頁 2：現場收款對帳（含修改與刪除訂單）
+# 分頁 2：現場收款對帳
 # -------------------------------------------------------------
 with tab2:
     st.subheader("💵 現場收款、找零與訂單修改維護")
@@ -711,9 +727,7 @@ with tab2:
 
         st.write("---")
 
-        # -------------------------------------------------------------
-        # 單筆訂單編輯面板 (儲存同步回 Google 試算表)
-        # -------------------------------------------------------------
+        # 單筆訂單編輯面板
         if st.session_state.edit_row_idx is not None:
             e_idx = st.session_state.edit_row_idx
             if e_idx in st.session_state.orders_data.index:
@@ -770,9 +784,6 @@ with tab2:
                             st.session_state.edit_row_idx = None
                             st.rerun()
 
-        # -------------------------------------------------------------
-        # 訂單列表：支援修改與刪除
-        # -------------------------------------------------------------
         st.markdown("#### 📋 訂單清單（可直接點擊 ✏️ 編輯 或 🗑️ 刪除）：")
         for row_idx, row_data in day_orders.iterrows():
             ord_id = row_data.get("訂單編號", "")
