@@ -13,6 +13,12 @@ APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbw0UEIp80umbupbDQkMQA
 SHEET_ID = "1mHnXoG-Duq45EvwZTRVuq86rsK8T5DA9NkLnOi30wuM"
 ORDERS_GID = "1002"
 
+SVG_100 = """<svg width="180" height="90" viewBox="0 0 180 90" xmlns="http://www.w3.org/2000/svg" style="border-radius:6px; box-shadow:2px 3px 6px rgba(0,0,0,0.3); margin:4px;"><rect width="180" height="90" rx="6" fill="#C53030"/><rect x="4" y="4" width="172" height="82" rx="4" fill="none" stroke="#FED7D7" stroke-width="1.5" stroke-dasharray="4,2"/><circle cx="45" cy="45" r="22" fill="#9B2C2C"/><circle cx="45" cy="45" r="18" fill="none" stroke="#FEB2B2" stroke-width="1"/><text x="45" y="52" font-family="sans-serif" font-size="20" font-weight="bold" fill="#FED7D7" text-anchor="middle">100</text><text x="135" y="55" font-family="sans-serif" font-size="44" font-weight="900" fill="#FFFFFF" text-anchor="middle">100</text><text x="90" y="22" font-family="sans-serif" font-size="12" font-weight="bold" fill="#FED7D7" text-anchor="middle">中華民國中央銀行</text><text x="135" y="75" font-family="sans-serif" font-size="14" font-weight="bold" fill="#FEEBC8" text-anchor="middle">壹佰圓</text></svg>"""
+SVG_50 = """<svg width="84" height="84" viewBox="0 0 84 84" xmlns="http://www.w3.org/2000/svg" style="filter: drop-shadow(2px 3px 4px rgba(0,0,0,0.35)); margin:4px;"><circle cx="42" cy="42" r="40" fill="#D69E2E" stroke="#744210" stroke-width="2"/><circle cx="42" cy="42" r="34" fill="#ECC94B" stroke="#B7791F" stroke-width="1.5"/><circle cx="42" cy="42" r="26" fill="#D69E2E"/><text x="42" y="49" font-family="sans-serif" font-size="28" font-weight="900" fill="#5A3207" text-anchor="middle">50</text><text x="42" y="61" font-family="sans-serif" font-size="11" font-weight="bold" fill="#744210" text-anchor="middle">圓</text></svg>"""
+SVG_10 = """<svg width="76" height="76" viewBox="0 0 76 76" xmlns="http://www.w3.org/2000/svg" style="filter: drop-shadow(2px 3px 4px rgba(0,0,0,0.3)); margin:4px;"><circle cx="38" cy="38" r="36" fill="#A0AEC0" stroke="#4A5568" stroke-width="2"/><circle cx="38" cy="38" r="30" fill="#E2E8F0" stroke="#718096" stroke-width="1.5"/><text x="38" y="44" font-family="sans-serif" font-size="26" font-weight="900" fill="#2D3748" text-anchor="middle">10</text><text x="38" y="56" font-family="sans-serif" font-size="11" font-weight="bold" fill="#4A5568" text-anchor="middle">圓</text></svg>"""
+SVG_5 = """<svg width="66" height="66" viewBox="0 0 66 66" xmlns="http://www.w3.org/2000/svg" style="filter: drop-shadow(2px 3px 4px rgba(0,0,0,0.3)); margin:4px;"><circle cx="33" cy="33" r="31" fill="#CBD5E0" stroke="#718096" stroke-width="2"/><circle cx="33" cy="33" r="25" fill="#EDF2F7" stroke="#A0AEC0" stroke-width="1"/><text x="33" y="39" font-family="sans-serif" font-size="22" font-weight="900" fill="#2D3748" text-anchor="middle">5</text><text x="33" y="49" font-family="sans-serif" font-size="10" font-weight="bold" fill="#4A5568" text-anchor="middle">圓</text></svg>"""
+SVG_1 = """<svg width="58" height="58" viewBox="0 0 58 58" xmlns="http://www.w3.org/2000/svg" style="filter: drop-shadow(2px 3px 4px rgba(0,0,0,0.3)); margin:4px;"><circle cx="29" cy="29" r="27" fill="#DD6B20" stroke="#7B341E" stroke-width="2"/><circle cx="29" cy="29" r="21" fill="#ED8936" stroke="#9C4221" stroke-width="1"/><text x="29" y="35" font-family="sans-serif" font-size="20" font-weight="900" fill="#431407" text-anchor="middle">1</text><text x="29" y="45" font-family="sans-serif" font-size="10" font-weight="bold" fill="#652B19" text-anchor="middle">圓</text></svg>"""
+
 def get_current_workweek_dates():
     today = date.today()
     if today.weekday() >= 5:
@@ -43,7 +49,6 @@ st.markdown("""
         border-left: 8px solid #3B82F6;
     }
 
-    /* 日期大按鈕 */
     .date-btn button {
         width: 100% !important; min-height: 90px !important;
         font-size: 26px !important; font-weight: 900 !important;
@@ -59,7 +64,6 @@ st.markdown("""
         white-space: pre-line !important;
     }
 
-    /* 人員大按鍵 */
     .user-btn button {
         width: 100% !important; min-height: 95px !important;
         font-size: 28px !important; font-weight: 900 !important;
@@ -68,7 +72,6 @@ st.markdown("""
         margin-bottom: 14px !important;
     }
 
-    /* 店家大按鍵 */
     .store-btn button {
         width: 100% !important; min-height: 95px !important;
         font-size: 28px !important; font-weight: 900 !important;
@@ -77,14 +80,12 @@ st.markdown("""
         margin-bottom: 14px !important;
     }
 
-    /* 餐點大卡片 */
     .food-card {
         background-color: #FFFFFF; border: 2.5px solid #CBD5E1;
         border-radius: 20px; padding: 20px; margin-bottom: 22px;
         box-shadow: 0 4px 12px rgba(0,0,0,0.06);
     }
 
-    /* 種類單選大按鈕 */
     div[data-testid="stRadio"] > div[role="radiogroup"] > label {
         background-color: #F0F9FF !important;
         border: 2px solid #38BDF8 !important;
@@ -96,7 +97,6 @@ st.markdown("""
         color: #0369A1 !important;
     }
 
-    /* 數量加減大按鍵 */
     .qty-btn button {
         font-size: 32px !important; font-weight: 900 !important;
         min-height: 56px !important; width: 100% !important;
@@ -110,7 +110,6 @@ st.markdown("""
         border: 2px solid #CBD5E1;
     }
 
-    /* 確認點這道大按鈕 */
     .food-order-btn button {
         width: 100% !important; min-height: 80px !important;
         font-size: 26px !important; font-weight: 900 !important;
@@ -123,14 +122,21 @@ st.markdown("""
         background-color: #059669 !important;
     }
 
-    /* 購物車提示卡 */
     .cart-summary {
         background-color: #FEF3C7; border: 3px solid #F59E0B;
         border-radius: 18px; padding: 18px; font-size: 24px;
         font-weight: 900; color: #92400E; margin-bottom: 20px;
     }
 
-    /* 彙整出單表列印專用樣式 */
+    .money-visual-board {
+        background-color: #FFFFFF; border: 3px dashed #60A5FA;
+        border-radius: 16px; padding: 20px; margin-top: 14px; margin-bottom: 14px;
+    }
+    .money-group-row {
+        display: flex; flex-wrap: wrap; align-items: center; gap: 14px;
+        margin-bottom: 14px; padding-bottom: 10px; border-bottom: 1px solid #F1F5F9;
+    }
+
     .receipt-box {
         background-color: #FFFFFF;
         border: 2px dashed #475569;
@@ -146,7 +152,6 @@ st.markdown("""
         margin-bottom: 18px;
     }
 
-    /* 左下角回頂端浮動圓鈕 */
     .float-top-btn {
         position: fixed; bottom: 25px; left: 25px; z-index: 99999;
         background-color: #0284C7; color: white !important;
@@ -497,10 +502,10 @@ with tab1:
                     st.markdown('</div>', unsafe_allow_html=True)
 
 # -------------------------------------------------------------
-# 分頁 2：現場收款對帳
+# 分頁 2：現場收款對帳（含實體貨幣找零）
 # -------------------------------------------------------------
 with tab2:
-    st.subheader("💵 現場收款與找零")
+    st.subheader("💵 現場收款與找零（含實體貨幣圖樣）")
     q_date = st.date_input("選擇收款日期", value=st.session_state.target_order_date, key="q_date_recon")
     if st.button("🔄 重新載入最新資料", key="btn_reload_recon"):
         st.session_state.orders_data = load_orders_from_sheet()
@@ -513,28 +518,113 @@ with tab2:
     if day_orders.empty:
         st.info("該日期無點餐紀錄。")
     else:
-        day_orders["金額"] = day_orders["小計金額"].apply(parse_price)
-        unpaid = day_orders[day_orders["付款狀態"] != "已付款"]
-        
-        if unpaid.empty:
-            st.success("🎉 本日全部訂單已收款完畢！可前往【🖨️ 訂單彙整出單】出單。")
-        else:
-            u_list = unpaid["員工姓名"].unique().tolist()
-            u_sel = st.selectbox("選擇繳費同仁", u_list)
-            due = unpaid[unpaid["員工姓名"] == u_sel]["金額"].sum()
-            st.markdown(f"### 應收金額：**${fmt_price(due)} 元**")
-            
-            if st.button(f"✅ 確認收齊 {u_sel} 款項", type="primary"):
-                sync_to_google_sheet({"action": "update_status", "user": u_sel, "status": "已付款"})
-                st.session_state.orders_data.loc[st.session_state.orders_data["員工姓名"] == u_sel, "付款狀態"] = "已付款"
-                st.success("收款完成！")
-                st.rerun()
+        day_orders["金額數值"] = day_orders["小計金額"].apply(parse_price)
+        total_money = round(day_orders["金額數值"].sum(), 2)
+        paid_orders = day_orders[day_orders["付款狀態"] == "已付款"]
+        paid_money = round(paid_orders["金額數值"].sum(), 2)
+        unpaid_money = round(total_money - paid_money, 2)
+        unpaid_count = len(day_orders) - len(paid_orders)
+
+        m1, m2, m3 = st.columns(3)
+        m1.metric("本日訂單總額", f"${fmt_price(total_money)} 元")
+        m2.metric("已收總額", f"${fmt_price(paid_money)} 元", f"{len(paid_orders)} 筆")
+        m3.metric("待收餘額 (未收)", f"${fmt_price(unpaid_money)} 元", f"{unpaid_count} 筆", delta_color="inverse")
 
         st.write("---")
+
+        unpaid = day_orders[day_orders["付款狀態"] != "已付款"]
+        if unpaid.empty:
+            st.success("🎉 本日全部訂單已收款完畢！可前往【🖨️ 訂單彙整出單】分頁出單。")
+        else:
+            user_options = unpaid["員工姓名"].dropna().unique().tolist()
+            calc_col1, calc_col2 = st.columns([1, 1])
+
+            with calc_col1:
+                target_user = st.selectbox("選擇要繳費收款的同仁", options=user_options)
+                user_unpaid_items = unpaid[unpaid["員工姓名"] == target_user]
+                target_due = round(user_unpaid_items["金額數值"].sum(), 2)
+
+                st.markdown(f"""
+                <div style="background-color: #FEF2F2; border: 2px solid #F87171; border-radius: 14px; padding: 16px; margin-top: 10px;">
+                    👤 收款對象：<b>{target_user}</b><br>
+                    💰 應收金額：<b style="color: #DC2626; font-size: 34px;">${fmt_price(target_due)}</b> 元
+                </div>
+                """, unsafe_allow_html=True)
+
+            with calc_col2:
+                st.write("點選同仁拿出的面額：")
+                q_col1, q_col2, q_col3 = st.columns(3)
+                with q_col1:
+                    if st.button("剛好", key="pay_exact"):
+                        st.session_state.received_cash = float(target_due)
+                with q_col2:
+                    if st.button("💵 拿 100", key="pay_100"):
+                        st.session_state.received_cash = 100.0
+                with q_col3:
+                    if st.button("💵 拿 500", key="pay_500"):
+                        st.session_state.received_cash = 500.0
+
+                default_val = st.session_state.get("received_cash", float(target_due))
+                paid_input = st.number_input("或自訂實收金額 (元)", min_value=0.0, value=float(default_val), step=1.0)
+
+                change = round(paid_input - target_due, 2)
+                if change >= 0:
+                    st.markdown(f"""
+                    <div style="background-color: #ECFDF5; border: 2px solid #34D399; border-radius: 14px; padding: 16px; margin-top: 10px;">
+                        🪙 應找零錢：<b style="color: #059669; font-size: 34px;">${fmt_price(change)}</b> 元
+                    </div>
+                    """, unsafe_allow_html=True)
+
+                    rem_c = int(change)
+                    c100 = rem_c // 100
+                    rem_c %= 100
+                    c50 = rem_c // 50
+                    rem_c %= 50
+                    c10 = rem_c // 10
+                    rem_c %= 10
+                    c5 = rem_c // 5
+                    c1 = rem_c % 5
+
+                    if change > 0:
+                        st.markdown("### 👉 請照著畫面「看到幾個就拿幾個」找給同仁：")
+                        board_html = "<div class='money-visual-board'>"
+                        if c100 > 0:
+                            board_html += f"<div class='money-group-row'>{''.join([SVG_100 for _ in range(c100)])}</div>"
+                        if c50 > 0:
+                            board_html += f"<div class='money-group-row'>{''.join([SVG_50 for _ in range(c50)])}</div>"
+                        if c10 > 0:
+                            board_html += f"<div class='money-group-row'>{''.join([SVG_10 for _ in range(c10)])}</div>"
+                        if c5 > 0:
+                            board_html += f"<div class='money-group-row'>{''.join([SVG_5 for _ in range(c5)])}</div>"
+                        if c1 > 0:
+                            board_html += f"<div class='money-group-row'>{''.join([SVG_1 for _ in range(c1)])}</div>"
+                        board_html += "</div>"
+                        st.markdown(board_html, unsafe_allow_html=True)
+                    else:
+                        st.info("👌 剛好收齊，不需要找錢！")
+
+                    st.write("")
+                    if st.button(f"✅ 確認收款完畢（將 {target_user} 設為已付款）", type="primary", use_container_width=True):
+                        target_indices = st.session_state.orders_data[st.session_state.orders_data["員工姓名"] == target_user].index
+                        st.session_state.orders_data.loc[target_indices, "付款狀態"] = "已付款"
+                        with st.spinner("同步雲端狀態中..."):
+                            sync_to_google_sheet({
+                                "action": "update_status",
+                                "user": target_user,
+                                "status": "已付款"
+                            })
+                        st.success(f"已完成 {target_user} 收款並同步至雲端！")
+                        time.sleep(0.5)
+                        st.rerun()
+                else:
+                    st.error(f"⚠️ 還不夠喔！同仁還差 ${fmt_price(abs(change))} 元")
+
+        st.write("---")
+        st.markdown("#### 📋 訂單流水清單：")
         st.dataframe(day_orders[["訂單編號", "員工姓名", "餐點品項", "麵類選擇", "數量", "小計金額", "付款狀態"]], use_container_width=True)
 
 # -------------------------------------------------------------
-# 分頁 3：訂單彙整出單（完整保留店家出單、個人核對、LINE複製與列印）
+# 分頁 3：訂單彙整出單（完整店家總單、發餐名單與LINE格式）
 # -------------------------------------------------------------
 with tab3:
     st.subheader("🖨️ 中餐訂單出單與分發彙整表")
@@ -565,7 +655,7 @@ with tab3:
             out_day_orders["金額數值"] = out_day_orders["小計金額"].apply(parse_price)
             out_day_orders["數量數值"] = out_day_orders["數量"].apply(lambda x: int(parse_price(x)) if parse_price(x) > 0 else 1)
 
-            total_money = round(out_day_orders["金額數值"].sum(), 2)
+            total_money = round(out_day_orders["金額数値" if "金額数値" in out_day_orders else "金額數值"].sum(), 2)
             total_portions = int(out_day_orders["數量數值"].sum())
             total_items = len(out_day_orders)
 
@@ -592,12 +682,10 @@ with tab3:
 
             out_day_orders["餐點規格彙整"] = out_day_orders.apply(make_spec_name, axis=1)
 
-            # 1. 店家品項加總總表
             summary_grouped = out_day_orders.groupby("餐點規格彙整")["數量數值"].sum().reset_index()
             summary_grouped.columns = ["餐點項目與規格", "總數量 (份)"]
             summary_grouped = summary_grouped.sort_values(by="總數量 (份)", ascending=False)
 
-            # 2. 個人分發核對名單
             person_grouped = out_day_orders.groupby("員工姓名").agg({
                 "餐點規格彙整": lambda x: "、".join(f"{item} x{qty}" if qty > 1 else item for item, qty in zip(x, out_day_orders.loc[x.index, "數量數值"])),
                 "金額數值": "sum",
@@ -605,7 +693,6 @@ with tab3:
             }).reset_index()
             person_grouped.columns = ["同仁姓名", "點購餐點品項明細", "應付小計", "付款狀態"]
 
-            # LINE 純文字格式
             line_order_text = f"【午餐訂單 - {order_out_date}】\n--------------------\n"
             line_order_text += "【餐點彙整清單】\n"
             for _, s_row in summary_grouped.iterrows():
