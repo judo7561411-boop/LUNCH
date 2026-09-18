@@ -63,6 +63,7 @@ st.markdown("""
         border-left: 8px solid #3B82F6;
     }
 
+    /* 日期大按鈕 */
     .date-btn button {
         width: 100% !important; min-height: 95px !important;
         font-size: 26px !important; font-weight: 900 !important;
@@ -78,6 +79,7 @@ st.markdown("""
         white-space: pre-line !important;
     }
 
+    /* 未點餐同仁按鍵 */
     .user-btn button {
         width: 100% !important; min-height: 100px !important;
         font-size: 28px !important; font-weight: 900 !important;
@@ -85,7 +87,17 @@ st.markdown("""
         background-color: #F0FDF4 !important; color: #166534 !important;
         margin-bottom: 14px !important; white-space: pre-line !important;
     }
+    
+    /* 已完成點餐同仁按鍵（灰底標記已點餐） */
+    .user-btn-done button {
+        width: 100% !important; min-height: 100px !important;
+        font-size: 28px !important; font-weight: 900 !important;
+        border-radius: 18px !important; border: 3px solid #94A3B8 !important;
+        background-color: #F1F5F9 !important; color: #64748B !important;
+        margin-bottom: 14px !important; white-space: pre-line !important;
+    }
 
+    /* 店家大按鍵 */
     .store-btn button {
         width: 100% !important; min-height: 95px !important;
         font-size: 28px !important; font-weight: 900 !important;
@@ -94,29 +106,33 @@ st.markdown("""
         margin-bottom: 14px !important;
     }
 
+    /* 餐點大卡片 */
     .food-card {
         background-color: #FFFFFF; border: 2.5px solid #CBD5E1;
         border-radius: 20px; padding: 22px; margin-bottom: 22px;
         box-shadow: 0 4px 12px rgba(0,0,0,0.06);
     }
 
-    /* 友善實體大按鍵：規格與加麵選擇（替代傳統下拉選單與圓點） */
-    .option-btn button {
+    /* 橫式選項大按鈕：未選中 */
+    .h-option-btn button {
         width: 100% !important; min-height: 72px !important;
         font-size: 22px !important; font-weight: 900 !important;
-        border-radius: 14px !important; border: 2.5px solid #94A3B8 !important;
+        border-radius: 16px !important; border: 2.5px solid #94A3B8 !important;
         background-color: #F8FAFC !important; color: #334155 !important;
-        margin-bottom: 8px !important;
         white-space: pre-line !important;
     }
-    .option-btn-active button {
+    .h-option-btn button:hover {
+        border-color: #3B82F6 !important; background-color: #EFF6FF !important;
+    }
+
+    /* 橫式選項大按鈕：已選中 (深藍底白字) */
+    .h-option-btn-active button {
         width: 100% !important; min-height: 72px !important;
         font-size: 22px !important; font-weight: 900 !important;
-        border-radius: 14px !important; border: 3.5px solid #1D4ED8 !important;
+        border-radius: 16px !important; border: 3.5px solid #1D4ED8 !important;
         background: linear-gradient(135deg, #2563EB 0%, #1D4ED8 100%) !important;
         color: #FFFFFF !important;
         box-shadow: 0 4px 12px rgba(37,99,235,0.35) !important;
-        margin-bottom: 8px !important;
         white-space: pre-line !important;
     }
 
@@ -133,7 +149,7 @@ st.markdown("""
         border: 2px solid #CBD5E1;
     }
 
-    /* 醒目橘色加入購物車大按鈕 */
+    /* 鮮豔亮橘色確認加入按鈕 */
     div[data-testid="stButton"] button[kind="primary"],
     div.food-order-btn button,
     div.food-order-btn button[kind="primary"],
@@ -161,7 +177,6 @@ st.markdown("""
         transform: translateY(-2px);
     }
 
-    /* 滿版特大繳費提示卡 (最後送單完成畫面) */
     .big-pay-card {
         background: linear-gradient(135deg, #F0FDF4 0%, #DCFCE7 100%);
         border: 4px solid #22C55E;
@@ -172,7 +187,15 @@ st.markdown("""
         box-shadow: 0 8px 24px rgba(34,197,94,0.25);
     }
 
-    /* 點擊成功跳出的提示大卡片 */
+    .already-ordered-card {
+        background: linear-gradient(135deg, #F8FAFC 0%, #E2E8F0 100%);
+        border: 3.5px solid #64748B;
+        border-radius: 22px;
+        padding: 26px;
+        text-align: center;
+        margin-bottom: 24px;
+    }
+
     .added-feedback-card {
         background: linear-gradient(135deg, #EFF6FF 0%, #DBEAFE 100%);
         border: 4px solid #2563EB;
@@ -404,12 +427,12 @@ st.title("🍱 中餐點餐與管理系統")
 tab1, tab2, tab3 = st.tabs(["🛒 友善大圖點餐", "💵 現場收款對帳", "🖨️ 訂單彙整出單"])
 
 # -------------------------------------------------------------
-# 分頁 1：友善大圖點餐（直覺實體大按鍵種類選擇 + 即時加入購物車畫面）
+# 分頁 1：友善大圖點餐
 # -------------------------------------------------------------
 with tab1:
     chosen_date_str = str(st.session_state.target_order_date)
 
-    # 1. 送單完成畫面（顯示需準備金額）
+    # 1. 送單完成畫面
     if st.session_state.order_finished:
         order_total_pay = st.session_state.last_order_total
         st.markdown(f"""
@@ -477,7 +500,7 @@ with tab1:
                 st.session_state.date_selected = True
                 st.rerun()
 
-    # 3. 步驟 2：選姓名
+    # 3. 步驟 2：選姓名（自動辨識已點餐過的人）
     elif st.session_state.selected_user is None:
         c_head1, c_head2 = st.columns([3, 1])
         with c_head1:
@@ -487,16 +510,31 @@ with tab1:
                 st.session_state.date_selected = False
                 st.rerun()
 
+        # 檢查當天有哪些同仁已經有點過餐
+        all_orders = st.session_state.orders_data
+        ordered_users_today = set()
+        if not all_orders.empty and "訂購日期" in all_orders.columns and "員工姓名" in all_orders.columns:
+            date_filter = all_orders["訂購日期"].astype(str).str.replace("-", "/").str.contains(chosen_date_str.replace("-", "/"))
+            ordered_users_today = set(all_orders[date_filter]["員工姓名"].dropna().astype(str).str.strip().tolist())
+
         if not df_users.empty and "姓名" in df_users.columns:
             u_cols = st.columns(2)
             for idx, (_, u) in enumerate(df_users.iterrows()):
                 u_name = str(u["姓名"]).strip()
                 u_lim = parse_price(u.get("金額限制", 0))
                 lim_text = f"限額 ${fmt_price(u_lim)} 元" if u_lim > 0 else "無限制額度"
-                btn_u_label = f"👤 {u_name}\n（{lim_text}）"
+                
+                # 自動辨識已點過餐的人
+                is_already_ordered = (u_name in ordered_users_today)
+                if is_already_ordered:
+                    btn_u_label = f"👤 {u_name}（✅ 今日已點過餐）"
+                    btn_class = "user-btn-done"
+                else:
+                    btn_u_label = f"👤 {u_name}\n（{lim_text}）"
+                    btn_class = "user-btn"
 
                 with u_cols[idx % 2]:
-                    st.markdown('<div class="user-btn">', unsafe_allow_html=True)
+                    st.markdown(f'<div class="{btn_class}">', unsafe_allow_html=True)
                     if st.button(btn_u_label, key=f"user_{idx}"):
                         st.session_state.selected_user = u_name
                         st.session_state.user_daily_limit = u_lim
@@ -504,43 +542,93 @@ with tab1:
                         st.rerun()
                     st.markdown('</div>', unsafe_allow_html=True)
 
-    # 4. 步驟 3：選店家
+    # 4. 步驟 3：已點餐者提示 或 選擇店家
     elif st.session_state.selected_store is None:
         u_name = st.session_state.selected_user
         u_lim = st.session_state.user_daily_limit
-        lim_str = f"今日限額：<b>${fmt_price(u_lim)} 元</b>" if u_lim > 0 else "今日限額：<b>無限制</b>"
-        
-        c1, c2 = st.columns([3, 1])
-        with c1:
-            st.markdown(f'<div class="budget-banner">👤 同仁：<b>{u_name}</b> ｜ 📅 預訂：<b>{chosen_date_str}</b> ｜ {lim_str}</div>', unsafe_allow_html=True)
-        with c2:
-            if st.button("⬅️ 重選名字/日期"):
-                st.session_state.selected_user = None
-                st.rerun()
 
-        st.markdown('<div class="simple-title">第 3 步：想吃哪一家？（點店家）</div>', unsafe_allow_html=True)
-        store_list = df_menu["店家名稱"].dropna().unique().tolist() if "店家名稱" in df_menu.columns else ["主要合作店家"]
-        s_cols = st.columns(2)
-        for idx, s_name in enumerate(store_list):
-            with s_cols[idx % 2]:
-                st.markdown('<div class="store-btn">', unsafe_allow_html=True)
-                if st.button(f"🏪 {s_name}", key=f"store_{idx}"):
-                    st.session_state.selected_store = s_name
-                    st.session_state.selected_category = "全部"
+        # 再次檢查該同仁在該日是否已點過餐
+        all_orders = st.session_state.orders_data
+        user_already_orders = pd.DataFrame()
+        if not all_orders.empty and "訂購日期" in all_orders.columns and "員工姓名" in all_orders.columns:
+            date_mask = all_orders["訂購日期"].astype(str).str.replace("-", "/").str.contains(chosen_date_str.replace("-", "/"))
+            user_already_orders = all_orders[date_mask & (all_orders["員工姓名"] == u_name)]
+
+        # 如果已經點過餐，跳出已完成提示，不用再點餐
+        if not user_already_orders.empty:
+            spent_amount = user_already_orders["小計金額"].apply(parse_price).sum()
+            ordered_items_text = "、".join(user_already_orders["餐點品項"].tolist())
+            
+            st.markdown(f"""
+            <div class="already-ordered-card">
+                <div style="font-size:36px; font-weight:900; color:#1E293B; margin-bottom:10px;">
+                    ✅ 【{u_name}】您在【{chosen_date_str}】已經點過餐囉！
+                </div>
+                <div style="font-size:26px; color:#334155; margin-bottom:12px;">
+                    🍲 已點餐點：<b>{ordered_items_text}</b>
+                </div>
+                <div style="font-size:28px; font-weight:900; color:#DC2626; margin-bottom:16px;">
+                    應付總金額：${fmt_price(spent_amount)} 元 ｜ 狀態：{user_already_orders['付款狀態'].values[0]}
+                </div>
+                <div style="font-size:22px; color:#64748B;">
+                    （系統已自動記錄，您不需重複點餐）
+                </div>
+            </div>
+            """, unsafe_allow_html=True)
+
+            col_bk1, col_bk2 = st.columns(2)
+            with col_bk1:
+                if st.button("👉 換下一位點餐", type="primary", use_container_width=True):
+                    reset_ordering()
                     st.rerun()
-                st.markdown('</div>', unsafe_allow_html=True)
+            with col_bk2:
+                if st.button("➕ 我還要加點其他餐點", use_container_width=True):
+                    # 允許額外加點
+                    st.session_state.selected_store = "主要合作店家" if "店家名稱" not in df_menu.columns else df_menu["店家名稱"].dropna().unique()[0]
+                    st.rerun()
 
-    # 5. 步驟 4：挑選餐點
+        else:
+            lim_str = f"今日限額：<b>${fmt_price(u_lim)} 元</b>" if u_lim > 0 else "今日限額：<b>無限制</b>"
+            c1, c2 = st.columns([3, 1])
+            with c1:
+                st.markdown(f'<div class="budget-banner">👤 同仁：<b>{u_name}</b> ｜ 📅 預訂：<b>{chosen_date_str}</b> ｜ {lim_str}</div>', unsafe_allow_html=True)
+            with c2:
+                if st.button("⬅️ 重選名字/日期"):
+                    st.session_state.selected_user = None
+                    st.rerun()
+
+            st.markdown('<div class="simple-title">第 3 步：想吃哪一家？（點店家）</div>', unsafe_allow_html=True)
+            store_list = df_menu["店家名稱"].dropna().unique().tolist() if "店家名稱" in df_menu.columns else ["主要合作店家"]
+            s_cols = st.columns(2)
+            for idx, s_name in enumerate(store_list):
+                with s_cols[idx % 2]:
+                    st.markdown('<div class="store-btn">', unsafe_allow_html=True)
+                    if st.button(f"🏪 {s_name}", key=f"store_{idx}"):
+                        st.session_state.selected_store = s_name
+                        st.session_state.selected_category = "全部"
+                        st.rerun()
+                    st.markdown('</div>', unsafe_allow_html=True)
+
+    # 5. 步驟 4：挑選餐點（自動依限額過濾可選餐點 + 橫式選項）
     else:
         u_name = st.session_state.selected_user
         store_name = st.session_state.selected_store
         u_lim = st.session_state.user_daily_limit
 
+        # 計算今日已點金額
+        all_orders = st.session_state.orders_data
+        already_spent_today = 0.0
+        if not all_orders.empty and "訂購日期" in all_orders.columns and "員工姓名" in all_orders.columns:
+            d_mask = all_orders["訂購日期"].astype(str).str.replace("-", "/").str.contains(chosen_date_str.replace("-", "/"))
+            user_done = all_orders[d_mask & (all_orders["員工姓名"] == u_name)]
+            if not user_done.empty:
+                already_spent_today = user_done["小計金額"].apply(parse_price).sum()
+
         cart_sum = sum(x["subtotal"] for x in st.session_state.cart)
-        remain_budget = round(u_lim - cart_sum, 2) if u_lim > 0 else 999999
+        remain_budget = round(u_lim - already_spent_today - cart_sum, 2) if u_lim > 0 else 999999
 
         if u_lim > 0:
-            budget_banner_text = f"👤 <b>{u_name}</b> ｜ 每日限額：<b>${fmt_price(u_lim)}</b> 元 ｜ 已點：<b>${fmt_price(cart_sum)}</b> 元 ｜ 剩餘可用：<b style='color:#DC2626;'>${fmt_price(remain_budget)}</b> 元"
+            budget_banner_text = f"👤 <b>{u_name}</b> ｜ 每日限額：<b>${fmt_price(u_lim)}</b> 元 ｜ 已點/購物車：<b>${fmt_price(already_spent_today + cart_sum)}</b> 元 ｜ 剩餘可用：<b style='color:#DC2626;'>${fmt_price(remain_budget)}</b> 元"
         else:
             budget_banner_text = f"👤 <b>{u_name}</b> ｜ 每日限額：<b>無限制</b> ｜ 目前合計：<b>${fmt_price(cart_sum)}</b> 元"
 
@@ -557,7 +645,7 @@ with tab1:
                 st.rerun()
 
         # -------------------------------------------------------------
-        # 點選餐點後跳出的大回饋卡片（成功加入購物車）
+        # 點選餐點後跳出的大回饋卡片
         # -------------------------------------------------------------
         if st.session_state.just_added_item is not None:
             added_info = st.session_state.just_added_item
@@ -570,7 +658,7 @@ with tab1:
                     🍲 【{added_info['item']}】（{added_info['spec']} ｜ {added_info['extra']}）
                 </div>
                 <div style="font-size:24px; color:#DC2626; font-weight:900; margin-bottom:14px;">
-                    數量：{added_info['qty']} 份 ｜ 小計：${fmt_price(added_info['subtotal'])} 元 ｜ 購物車總計：${fmt_price(cart_sum)} 元
+                    數量：{added_info['qty']} 份 ｜ 小計：${fmt_price(added_info['subtotal'])} 元 ｜ 購物車累計：${fmt_price(cart_sum)} 元
                 </div>
             </div>
             """, unsafe_allow_html=True)
@@ -583,7 +671,6 @@ with tab1:
             with fb_col2:
                 if st.button("🛒 我點好了，直接送出訂單！", type="primary", key="btn_go_checkout", use_container_width=True):
                     st.session_state.just_added_item = None
-                    # 自動觸發送單
                     new_rows = []
                     current_len = len(st.session_state.orders_data)
                     for i, it in enumerate(st.session_state.cart):
@@ -615,7 +702,6 @@ with tab1:
         if st.session_state.cart and st.session_state.just_added_item is None:
             st.markdown("### 🛒 本次點餐清單：")
 
-            # 購物車單筆修改
             if st.session_state.cart_edit_idx is not None and st.session_state.cart_edit_idx < len(st.session_state.cart):
                 e_c_idx = st.session_state.cart_edit_idx
                 cart_item_to_edit = st.session_state.cart[e_c_idx]
@@ -725,7 +811,7 @@ with tab1:
 
         current_store_menu = df_menu[df_menu["店家名稱"] == store_name] if "店家名稱" in df_menu.columns else df_menu
 
-        # 餐點種類按鍵篩選
+        # 餐點種類篩選按鍵
         st.markdown('<div class="simple-title">📌 餐點種類（點選後自動跳轉餐點）：</div>', unsafe_allow_html=True)
         category_list = ["全部"]
         if "分類" in current_store_menu.columns:
@@ -764,13 +850,26 @@ with tab1:
         else:
             filtered_menu = current_store_menu
 
-        st.markdown(f'<div class="simple-title">今天我要吃？（【{active_cat}】餐點清單）</div>', unsafe_allow_html=True)
+        # -------------------------------------------------------------
+        # 系統依限額自動篩選：只顯示符合預算（未超額）的餐點
+        # -------------------------------------------------------------
+        affordable_items = []
+        for _, item_row in filtered_menu.iterrows():
+            item_base_price = parse_price(item_row.get("單價", 0))
+            if u_lim > 0 and item_base_price > remain_budget:
+                continue  # 自動隱藏超出剩餘預算的餐點
+            affordable_items.append(item_row)
 
-        if filtered_menu.empty:
-            st.info(f"此種類【{active_cat}】目前尚無餐點品項。")
+        st.markdown(f'<div class="simple-title">今天我要吃？（【{active_cat}】預算內可選購餐點）</div>', unsafe_allow_html=True)
+
+        if not affordable_items:
+            if u_lim > 0 and remain_budget <= 0:
+                st.warning(f"⚠️ 【{u_name}】您今天的額度已用完（剩餘 ${fmt_price(remain_budget)} 元），無法再加點其他餐點！")
+            else:
+                st.info(f"此種類【{active_cat}】目前沒有符合您剩餘預算的餐點。")
         else:
             m_cols = st.columns(2)
-            for idx, (_, item) in enumerate(filtered_menu.iterrows()):
+            for idx, item in enumerate(affordable_items):
                 i_name = str(item.get("餐點名稱", "")).strip()
                 base_p = parse_price(item.get("單價", 0))
                 category = str(item.get("分類", ""))
@@ -811,40 +910,40 @@ with tab1:
                             <div style="font-size: 24px; color: #475569; margin-bottom: 12px;">單價：<b style="color:#059669; font-size:28px;">${fmt_price(base_p)} 元</b></div>
                         """, unsafe_allow_html=True)
                         
-                        # ---------------------------------------------------------
-                        # 友善實體大按鍵：種類與尺寸挑選（不識字也不按錯）
-                        # ---------------------------------------------------------
+                        # -------------------------------------------------------------
+                        # 橫式點選：種類與尺寸大按鍵（橫向排列，方便單手與不識字操作）
+                        # -------------------------------------------------------------
                         if len(type_options) > 1:
-                            st.markdown("<div style='font-size:22px; font-weight:bold; color:#1E3A8A; margin-bottom:6px;'>👉 請點選種類 / 尺寸：</div>", unsafe_allow_html=True)
-                            opt_cols = st.columns(min(len(type_options), 3))
+                            st.markdown("<div style='font-size:22px; font-weight:bold; color:#1E3A8A; margin-bottom:8px;'>👉 請點選種類 / 規格：</div>", unsafe_allow_html=True)
+                            opt_cols = st.columns(len(type_options))
                             for o_idx, opt_txt in enumerate(type_options):
                                 is_opt_active = (chosen_type == opt_txt)
-                                opt_btn_class = "option-btn-active" if is_opt_active else "option-btn"
+                                opt_btn_class = "h-option-btn-active" if is_opt_active else "h-option-btn"
                                 opt_label = f"✅ {opt_txt}" if is_opt_active else opt_txt
-                                with opt_cols[o_idx % min(len(type_options), 3)]:
+                                with opt_cols[o_idx]:
                                     st.markdown(f'<div class="{opt_btn_class}">', unsafe_allow_html=True)
-                                    if st.button(opt_label, key=safe_key("btn_opt_choice", f"{i_name}_{opt_txt}", idx)):
+                                    if st.button(opt_label, key=safe_key("btn_h_opt", f"{i_name}_{opt_txt}", idx)):
                                         st.session_state[opt_sel_key] = opt_txt
                                         st.rerun()
                                     st.markdown('</div>', unsafe_allow_html=True)
 
-                        # 劉妹加麵選項大按鍵
+                        # 橫式點選：加麵選項大按鈕
                         if is_liumei:
-                            st.markdown("<div style='font-size:22px; font-weight:bold; color:#1E3A8A; margin-top:8px; margin-bottom:6px;'>👉 是否要加麵：</div>", unsafe_allow_html=True)
+                            st.markdown("<div style='font-size:22px; font-weight:bold; color:#1E3A8A; margin-top:10px; margin-bottom:8px;'>👉 是否要加麵：</div>", unsafe_allow_html=True)
                             ex_cols = st.columns(2)
                             for e_idx, ex_opt in enumerate(["不加麵", "要加麵 (+15元)"]):
                                 is_ex_active = (chosen_ex == ex_opt)
-                                ex_btn_class = "option-btn-active" if is_ex_active else "option-btn"
+                                ex_btn_class = "h-option-btn-active" if is_ex_active else "h-option-btn"
                                 ex_label = f"✅ {ex_opt}" if is_ex_active else ex_opt
                                 with ex_cols[e_idx]:
                                     st.markdown(f'<div class="{ex_btn_class}">', unsafe_allow_html=True)
-                                    if st.button(ex_label, key=safe_key("btn_ex_choice", f"{i_name}_{ex_opt}", idx)):
+                                    if st.button(ex_label, key=safe_key("btn_h_ex", f"{i_name}_{ex_opt}", idx)):
                                         st.session_state[ex_sel_key] = ex_opt
                                         st.rerun()
                                     st.markdown('</div>', unsafe_allow_html=True)
 
                         # 挑選數量
-                        st.markdown("<div style='font-size:22px; font-weight:bold; color:#1E3A8A; margin-top:8px; margin-bottom:6px;'>👉 挑選數量：</div>", unsafe_allow_html=True)
+                        st.markdown("<div style='font-size:22px; font-weight:bold; color:#1E3A8A; margin-top:10px; margin-bottom:6px;'>👉 挑選數量：</div>", unsafe_allow_html=True)
                         cq1, cq2, cq3 = st.columns([1, 2, 1])
                         with cq1:
                             st.markdown('<div class="qty-btn">', unsafe_allow_html=True)
