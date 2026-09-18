@@ -96,19 +96,28 @@ st.markdown("""
 
     .food-card {
         background-color: #FFFFFF; border: 2.5px solid #CBD5E1;
-        border-radius: 20px; padding: 20px; margin-bottom: 22px;
+        border-radius: 20px; padding: 22px; margin-bottom: 22px;
         box-shadow: 0 4px 12px rgba(0,0,0,0.06);
     }
 
-    div[data-testid="stRadio"] > div[role="radiogroup"] > label {
-        background-color: #F0F9FF !important;
-        border: 2px solid #38BDF8 !important;
-        border-radius: 14px !important;
-        padding: 8px 18px !important;
-        min-height: 54px !important;
-        font-size: 22px !important;
-        font-weight: 800 !important;
-        color: #0369A1 !important;
+    /* 友善實體大按鍵：規格與加麵選擇（替代傳統下拉選單與圓點） */
+    .option-btn button {
+        width: 100% !important; min-height: 72px !important;
+        font-size: 22px !important; font-weight: 900 !important;
+        border-radius: 14px !important; border: 2.5px solid #94A3B8 !important;
+        background-color: #F8FAFC !important; color: #334155 !important;
+        margin-bottom: 8px !important;
+        white-space: pre-line !important;
+    }
+    .option-btn-active button {
+        width: 100% !important; min-height: 72px !important;
+        font-size: 22px !important; font-weight: 900 !important;
+        border-radius: 14px !important; border: 3.5px solid #1D4ED8 !important;
+        background: linear-gradient(135deg, #2563EB 0%, #1D4ED8 100%) !important;
+        color: #FFFFFF !important;
+        box-shadow: 0 4px 12px rgba(37,99,235,0.35) !important;
+        margin-bottom: 8px !important;
+        white-space: pre-line !important;
     }
 
     .qty-btn button {
@@ -124,7 +133,7 @@ st.markdown("""
         border: 2px solid #CBD5E1;
     }
 
-    /* 鮮豔亮橘色確認加入按鈕 */
+    /* 醒目橘色加入購物車大按鈕 */
     div[data-testid="stButton"] button[kind="primary"],
     div.food-order-btn button,
     div.food-order-btn button[kind="primary"],
@@ -163,18 +172,17 @@ st.markdown("""
         box-shadow: 0 8px 24px rgba(34,197,94,0.25);
     }
 
-    /* 成功加入購物車彈出提示卡片 */
+    /* 點擊成功跳出的提示大卡片 */
     .added-feedback-card {
         background: linear-gradient(135deg, #EFF6FF 0%, #DBEAFE 100%);
-        border: 3.5px solid #2563EB;
+        border: 4px solid #2563EB;
         border-radius: 22px;
         padding: 24px;
         text-align: center;
         margin-bottom: 24px;
-        box-shadow: 0 6px 20px rgba(37,99,235,0.2);
+        box-shadow: 0 8px 22px rgba(37,99,235,0.25);
     }
 
-    /* 預算限額標籤卡 */
     .budget-banner {
         background-color: #F8FAFC;
         border-radius: 14px;
@@ -355,7 +363,7 @@ def reset_ordering():
     st.session_state.just_added_item = None
     st.session_state.last_order_total = 0.0
     
-    keys_to_clear = [k for k in st.session_state.keys() if k.startswith("qty_") or k.startswith("type_") or k.startswith("ex_")]
+    keys_to_clear = [k for k in st.session_state.keys() if k.startswith("qty_") or k.startswith("sel_opt_") or k.startswith("sel_ex_")]
     for k in keys_to_clear:
         del st.session_state[k]
 
@@ -396,12 +404,12 @@ st.title("🍱 中餐點餐與管理系統")
 tab1, tab2, tab3 = st.tabs(["🛒 友善大圖點餐", "💵 現場收款對帳", "🖨️ 訂單彙整出單"])
 
 # -------------------------------------------------------------
-# 分頁 1：友善大圖點餐
+# 分頁 1：友善大圖點餐（直覺實體大按鍵種類選擇 + 即時加入購物車畫面）
 # -------------------------------------------------------------
 with tab1:
     chosen_date_str = str(st.session_state.target_order_date)
 
-    # 1. 送單完成畫面（特大字體顯示要準備多少錢與實體幣值）
+    # 1. 送單完成畫面（顯示需準備金額）
     if st.session_state.order_finished:
         order_total_pay = st.session_state.last_order_total
         st.markdown(f"""
@@ -425,7 +433,7 @@ with tab1:
         p5, p1 = rem_p // 5, rem_p % 5
 
         if order_total_pay > 0:
-            st.markdown("#### 🪙 您可以準備這些錢交給老師/幹部：")
+            st.markdown("#### 🪙 您可以準備這些錢交給幹部：")
             board_html = "<div class='money-visual-board'>"
             if p100 > 0: board_html += f"<div class='money-group-row'>{''.join([SVG_100 for _ in range(p100)])}</div>"
             if p50 > 0: board_html += f"<div class='money-group-row'>{''.join([SVG_50 for _ in range(p50)])}</div>"
@@ -469,7 +477,7 @@ with tab1:
                 st.session_state.date_selected = True
                 st.rerun()
 
-    # 3. 步驟 2：選姓名（顯示每人每日限額）
+    # 3. 步驟 2：選姓名
     elif st.session_state.selected_user is None:
         c_head1, c_head2 = st.columns([3, 1])
         with c_head1:
@@ -549,40 +557,62 @@ with tab1:
                 st.rerun()
 
         # -------------------------------------------------------------
-        # 點完跳出的「已加入購物車畫面」回饋卡片
+        # 點選餐點後跳出的大回饋卡片（成功加入購物車）
         # -------------------------------------------------------------
         if st.session_state.just_added_item is not None:
             added_info = st.session_state.just_added_item
             st.markdown(f"""
             <div class="added-feedback-card">
-                <div style="font-size:32px; font-weight:900; color:#1E40AF; margin-bottom:8px;">
-                    ✅ 已成功加入購物車！
+                <div style="font-size:36px; font-weight:900; color:#1E40AF; margin-bottom:8px;">
+                    🎉 已加入購物車！
                 </div>
-                <div style="font-size:24px; color:#1F2937; margin-bottom:6px;">
-                    🍲 <b>{added_info['item']}</b>（{added_info['spec']}）x <b>{added_info['qty']} 份</b>
+                <div style="font-size:26px; font-weight:900; color:#1F2937; margin-bottom:6px;">
+                    🍲 【{added_info['item']}】（{added_info['spec']} ｜ {added_info['extra']}）
                 </div>
-                <div style="font-size:24px; color:#DC2626; font-weight:900;">
-                    小計：${fmt_price(added_info['subtotal'])} 元 ｜ 目前購物車累計：${fmt_price(cart_sum)} 元
+                <div style="font-size:24px; color:#DC2626; font-weight:900; margin-bottom:14px;">
+                    數量：{added_info['qty']} 份 ｜ 小計：${fmt_price(added_info['subtotal'])} 元 ｜ 購物車總計：${fmt_price(cart_sum)} 元
                 </div>
             </div>
             """, unsafe_allow_html=True)
 
             fb_col1, fb_col2 = st.columns(2)
             with fb_col1:
-                if st.button("➕ 繼續加點其他餐點", key="btn_continue_add", use_container_width=True):
+                if st.button("➕ 還想再點其他餐點", key="btn_continue_add", use_container_width=True):
                     st.session_state.just_added_item = None
                     st.rerun()
             with fb_col2:
-                if st.button("🛒 我選好了，看清單送單！", type="primary", key="btn_go_checkout", use_container_width=True):
+                if st.button("🛒 我點好了，直接送出訂單！", type="primary", key="btn_go_checkout", use_container_width=True):
                     st.session_state.just_added_item = None
-                    st.session_state.jump_to_items = False
+                    # 自動觸發送單
+                    new_rows = []
+                    current_len = len(st.session_state.orders_data)
+                    for i, it in enumerate(st.session_state.cart):
+                        new_rows.append({
+                            "訂單編號": f"ORD-{current_len + i + 1:03d}",
+                            "訂購日期": chosen_date_str,
+                            "員工編號": "",
+                            "員工姓名": u_name,
+                            "所屬部門": "",
+                            "餐點品項": it["item"],
+                            "麵類選擇": it["spec"],
+                            "是否加麵": it.get("extra", "不加麵"),
+                            "單價": f"${fmt_price(it['unit_price'])}",
+                            "數量": it["qty"],
+                            "小計金額": f"${fmt_price(it['subtotal'])}",
+                            "付款狀態": "未付款"
+                        })
+                    st.session_state.orders_data = pd.concat([st.session_state.orders_data, pd.DataFrame(new_rows)], ignore_index=True)
+                    st.session_state.last_order_total = cart_sum
+                    with st.spinner("同步雲端資料中..."):
+                        sync_to_google_sheet({"action": "append", "rows": new_rows})
+                    st.session_state.order_finished = True
                     st.rerun()
             st.write("---")
 
         # -------------------------------------------------------------
-        # 本次點餐清單（支援修改與最後送單）
+        # 本次點餐清單
         # -------------------------------------------------------------
-        if st.session_state.cart:
+        if st.session_state.cart and st.session_state.just_added_item is None:
             st.markdown("### 🛒 本次點餐清單：")
 
             # 購物車單筆修改
@@ -695,6 +725,7 @@ with tab1:
 
         current_store_menu = df_menu[df_menu["店家名稱"] == store_name] if "店家名稱" in df_menu.columns else df_menu
 
+        # 餐點種類按鍵篩選
         st.markdown('<div class="simple-title">📌 餐點種類（點選後自動跳轉餐點）：</div>', unsafe_allow_html=True)
         category_list = ["全部"]
         if "分類" in current_store_menu.columns:
@@ -759,30 +790,61 @@ with tab1:
 
                 is_liumei = "劉妹" in str(store_name)
                 qty_key = safe_key("qty", i_name, idx)
-                type_key = safe_key("type", i_name, idx)
-                ex_key = safe_key("ex", i_name, idx)
+                opt_sel_key = safe_key("sel_opt", i_name, idx)
+                ex_sel_key = safe_key("sel_ex", i_name, idx)
 
                 if qty_key not in st.session_state:
                     st.session_state[qty_key] = 1
+                if opt_sel_key not in st.session_state:
+                    st.session_state[opt_sel_key] = type_options[0]
+                if ex_sel_key not in st.session_state:
+                    st.session_state[ex_sel_key] = "不加麵"
+
+                chosen_type = st.session_state[opt_sel_key]
+                chosen_ex = st.session_state[ex_sel_key]
 
                 with m_cols[idx % 2]:
                     with st.container():
                         st.markdown(f"""
                         <div class="food-card">
-                            <div style="font-size: 28px; font-weight: 900; color: #1E293B; margin-bottom: 6px;">🍲 {i_name}</div>
-                            <div style="font-size: 22px; color: #475569; margin-bottom: 12px;">單價：<b style="color:#059669; font-size:26px;">${fmt_price(base_p)} 元</b></div>
+                            <div style="font-size: 30px; font-weight: 900; color: #1E293B; margin-bottom: 6px;">🍲 {i_name}</div>
+                            <div style="font-size: 24px; color: #475569; margin-bottom: 12px;">單價：<b style="color:#059669; font-size:28px;">${fmt_price(base_p)} 元</b></div>
                         """, unsafe_allow_html=True)
                         
-                        st.write("**👉 挑選種類 / 尺寸：**")
-                        chosen_type = st.radio(
-                            label=f"{i_name}_種類",
-                            options=type_options,
-                            key=type_key,
-                            horizontal=True,
-                            label_visibility="collapsed"
-                        )
+                        # ---------------------------------------------------------
+                        # 友善實體大按鍵：種類與尺寸挑選（不識字也不按錯）
+                        # ---------------------------------------------------------
+                        if len(type_options) > 1:
+                            st.markdown("<div style='font-size:22px; font-weight:bold; color:#1E3A8A; margin-bottom:6px;'>👉 請點選種類 / 尺寸：</div>", unsafe_allow_html=True)
+                            opt_cols = st.columns(min(len(type_options), 3))
+                            for o_idx, opt_txt in enumerate(type_options):
+                                is_opt_active = (chosen_type == opt_txt)
+                                opt_btn_class = "option-btn-active" if is_opt_active else "option-btn"
+                                opt_label = f"✅ {opt_txt}" if is_opt_active else opt_txt
+                                with opt_cols[o_idx % min(len(type_options), 3)]:
+                                    st.markdown(f'<div class="{opt_btn_class}">', unsafe_allow_html=True)
+                                    if st.button(opt_label, key=safe_key("btn_opt_choice", f"{i_name}_{opt_txt}", idx)):
+                                        st.session_state[opt_sel_key] = opt_txt
+                                        st.rerun()
+                                    st.markdown('</div>', unsafe_allow_html=True)
 
-                        st.write("**👉 挑選數量：**")
+                        # 劉妹加麵選項大按鍵
+                        if is_liumei:
+                            st.markdown("<div style='font-size:22px; font-weight:bold; color:#1E3A8A; margin-top:8px; margin-bottom:6px;'>👉 是否要加麵：</div>", unsafe_allow_html=True)
+                            ex_cols = st.columns(2)
+                            for e_idx, ex_opt in enumerate(["不加麵", "要加麵 (+15元)"]):
+                                is_ex_active = (chosen_ex == ex_opt)
+                                ex_btn_class = "option-btn-active" if is_ex_active else "option-btn"
+                                ex_label = f"✅ {ex_opt}" if is_ex_active else ex_opt
+                                with ex_cols[e_idx]:
+                                    st.markdown(f'<div class="{ex_btn_class}">', unsafe_allow_html=True)
+                                    if st.button(ex_label, key=safe_key("btn_ex_choice", f"{i_name}_{ex_opt}", idx)):
+                                        st.session_state[ex_sel_key] = ex_opt
+                                        st.rerun()
+                                    st.markdown('</div>', unsafe_allow_html=True)
+
+                        # 挑選數量
+                        st.markdown("<div style='font-size:22px; font-weight:bold; color:#1E3A8A; margin-top:8px; margin-bottom:6px;'>👉 挑選數量：</div>", unsafe_allow_html=True)
                         cq1, cq2, cq3 = st.columns([1, 2, 1])
                         with cq1:
                             st.markdown('<div class="qty-btn">', unsafe_allow_html=True)
@@ -800,18 +862,6 @@ with tab1:
                                     st.session_state[qty_key] += 1
                                     st.rerun()
                             st.markdown('</div>', unsafe_allow_html=True)
-
-                        if is_liumei:
-                            st.write("**👉 加麵選項：**")
-                            chosen_ex = st.radio(
-                                label=f"{i_name}_加麵",
-                                options=["不加麵", "要加麵 (+15元)"],
-                                horizontal=True,
-                                key=ex_key,
-                                label_visibility="collapsed"
-                            )
-                        else:
-                            chosen_ex = "不加麵"
 
                         extra_type_price = parse_extra_price(chosen_type)
                         extra_ex_price = 15 if chosen_ex == "要加麵 (+15元)" else 0
@@ -837,8 +887,9 @@ with tab1:
                                 "subtotal": current_subtotal
                             }
                             st.session_state.cart.append(item_data)
-                            st.session_state.just_added_item = item_data  # 觸發已加入購物車回饋畫面
+                            st.session_state.just_added_item = item_data
                             st.session_state[qty_key] = 1
+                            st.toast(f"✅ 已成功加入購物車：{i_name} x {current_qty} 份！", icon="🛒")
                             st.rerun()
                         st.markdown('</div>', unsafe_allow_html=True)
 
