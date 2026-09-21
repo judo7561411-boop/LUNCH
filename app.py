@@ -100,7 +100,6 @@ st.markdown("""
         margin-bottom: 22px;
     }
 
-    /* 單一畫面轉跳大方塊 */
     .screen-choice-tile button {
         width: 100% !important;
         min-height: 160px !important;
@@ -123,7 +122,6 @@ st.markdown("""
         box-shadow: 0 12px 24px rgba(29,78,216,0.25) !important;
     }
 
-    /* 規格與加麵大方塊 */
     .spec-choice-tile button {
         width: 100% !important;
         min-height: 140px !important;
@@ -143,7 +141,6 @@ st.markdown("""
         transform: translateY(-3px);
     }
 
-    /* 鮮豔亮橘色大按鈕 */
     div[data-testid="stButton"] button[kind="primary"] {
         width: 100% !important;
         min-height: 95px !important;
@@ -324,9 +321,8 @@ def sync_to_google_sheet(payload):
     except Exception as e:
         return False, str(e)
 
-# 初始化步驟管理（單一畫面轉跳狀態）
 if "order_step" not in st.session_state:
-    st.session_state.order_step = "DATE"  # DATE -> USER -> STORE -> FOOD -> SPEC -> EXTRA -> CART_DONE
+    st.session_state.order_step = "DATE"
 if "target_order_date" not in st.session_state:
     st.session_state.target_order_date = date.today()
 if "selected_user" not in st.session_state:
@@ -338,7 +334,6 @@ if "selected_store" not in st.session_state:
 if "selected_category" not in st.session_state:
     st.session_state.selected_category = "全部"
 
-# 正在挑選規格的臨時餐點
 if "current_picking_item" not in st.session_state:
     st.session_state.current_picking_item = None
 if "picked_spec" not in st.session_state:
@@ -372,13 +367,13 @@ st.title("🍱 中餐友善點餐系統")
 tab1, tab2, tab3 = st.tabs(["🛒 友善大圖點餐", "💵 現場收款對帳", "🖨️ 訂單彙整出單"])
 
 # -------------------------------------------------------------
-# 分頁 1：畫面式逐項轉跳點餐
+# 分頁 1：畫面式逐項轉跳點餐（價格由低到高排序）
 # -------------------------------------------------------------
 with tab1:
     chosen_date_str = str(st.session_state.target_order_date)
 
     # ==========================================
-    # 畫面 A：送單完成（大字顯示金額與找零，付給收錢人員）
+    # 畫面 A：送單完成（大字顯示金額，付給收錢人員）
     # ==========================================
     if st.session_state.order_step == "FINISH":
         order_total_pay = st.session_state.last_order_total
@@ -569,7 +564,7 @@ with tab1:
                 st.markdown('</div>', unsafe_allow_html=True)
 
     # ==========================================
-    # 畫面 4：挑選餐點大框框
+    # 畫面 4：挑選餐點大框框（價格由低到高嚴格排序）
     # ==========================================
     elif st.session_state.order_step == "FOOD":
         u_name = st.session_state.selected_user
@@ -590,9 +585,9 @@ with tab1:
         c1, c2 = st.columns([4, 1])
         with c1:
             if u_lim > 0:
-                st.markdown(f'<div class="aac-step-banner">👇 第 4 步：按大框框點餐（可用剩餘：<b style="color:#DC2626;">${fmt_price(remain_budget)}</b> 元）</div>', unsafe_allow_html=True)
+                st.markdown(f'<div class="aac-step-banner">👇 第 4 步：想吃什麼？(直接點) ｜ 剩餘可用：<b style="color:#DC2626;">${fmt_price(remain_budget)}</b> 元</div>', unsafe_allow_html=True)
             else:
-                st.markdown(f'<div class="aac-step-banner">👇 第 4 步：想吃什麼？直接按大框框點餐：</div>', unsafe_allow_html=True)
+                st.markdown('<div class="aac-step-banner">👇 第 4 步：想吃什麼？(直接點)</div>', unsafe_allow_html=True)
         with c2:
             if st.button("⬅️ 更換店家", use_container_width=True):
                 st.session_state.order_step = "STORE"
@@ -601,7 +596,6 @@ with tab1:
 
         current_store_menu = df_menu[df_menu["店家名稱"] == store_name] if "店家名稱" in df_menu.columns else df_menu
 
-        # 種類切換大按鈕
         category_list = ["全部"]
         if "分類" in current_store_menu.columns:
             extracted_cats = [str(c).strip() for c in current_store_menu["分類"].dropna().unique().tolist() if str(c).strip() not in ["", "nan"]]
@@ -623,13 +617,19 @@ with tab1:
 
         active_cat = st.session_state.selected_category
         if active_cat != "全部" and "分類" in current_store_menu.columns:
-            filtered_menu = current_store_menu[current_store_menu["分類"] == active_cat]
+            filtered_menu = current_store_menu[current_store_menu["分類"] == active_cat].copy()
         else:
-            filtered_menu = current_store_menu
+            filtered_menu = current_store_menu.copy()
+
+        # -------------------------------------------------------------
+        # 價格由低到高排序 (Price: Low to High)
+        # -------------------------------------------------------------
+        filtered_menu["parsed_price"] = filtered_menu["單價"].apply(parse_price)
+        filtered_menu = filtered_menu.sort_values(by="parsed_price", ascending=True)
 
         affordable_items = []
         for _, item_row in filtered_menu.iterrows():
-            item_base_price = parse_price(item_row.get("單價", 0))
+            item_base_price = item_row["parsed_price"]
             if u_lim > 0 and item_base_price > remain_budget:
                 continue
             affordable_items.append(item_row)
@@ -640,7 +640,7 @@ with tab1:
             pos_cols = st.columns(2)
             for idx, item in enumerate(affordable_items):
                 i_name = str(item.get("餐點名稱", "")).strip()
-                base_p = parse_price(item.get("單價", 0))
+                base_p = item["parsed_price"]
                 category = str(item.get("分類", ""))
                 food_icon = get_food_aac_icon(i_name, category)
 
@@ -672,7 +672,6 @@ with tab1:
                             "allow_extra": allow_extra
                         }
                         
-                        # 自動切換畫面：若有規格挑選 ➔ 跳轉 SPEC，若有加麵 ➔ 跳轉 EXTRA，都沒有 ➔ 直接加入購物籃
                         if has_spec:
                             st.session_state.order_step = "SPEC"
                             queue_speech(f"請選擇{i_name}的規格")
