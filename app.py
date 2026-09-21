@@ -92,6 +92,7 @@ st.markdown("""
         margin-bottom: 20px;
     }
 
+    /* 點餐大方塊按鈕 */
     .direct-touch-tile button {
         width: 100% !important;
         min-height: 150px !important;
@@ -114,6 +115,7 @@ st.markdown("""
         box-shadow: 0 10px 22px rgba(29,78,216,0.25) !important;
     }
 
+    /* 規格彈出方塊 */
     .pos-focus-card {
         background-color: #FFFFFF;
         border: 5px solid #F59E0B;
@@ -123,6 +125,7 @@ st.markdown("""
         box-shadow: 0 12px 30px rgba(0,0,0,0.18);
     }
 
+    /* 橫式選項大方塊按鈕 */
     .h-option-btn button {
         width: 100% !important; min-height: 85px !important;
         font-size: 24px !important; font-weight: 900 !important;
@@ -132,6 +135,15 @@ st.markdown("""
     }
     .h-option-btn button:hover {
         border-color: #3B82F6 !important; background-color: #EFF6FF !important;
+    }
+    .h-option-btn-active button {
+        width: 100% !important; min-height: 85px !important;
+        font-size: 24px !important; font-weight: 900 !important;
+        border-radius: 18px !important; border: 4px solid #1D4ED8 !important;
+        background: linear-gradient(135deg, #2563EB 0%, #1D4ED8 100%) !important;
+        color: #FFFFFF !important;
+        box-shadow: 0 4px 14px rgba(37,99,235,0.4) !important;
+        white-space: pre-line !important;
     }
 
     .qty-btn button {
@@ -147,6 +159,7 @@ st.markdown("""
         border: 2.5px solid #CBD5E1;
     }
 
+    /* 鮮豔亮橘色大按鈕 */
     div[data-testid="stButton"] button[kind="primary"] {
         width: 100% !important;
         min-height: 90px !important;
@@ -221,7 +234,7 @@ st.markdown("""
 
     .money-visual-board {
         background-color: #FFFFFF; border: 3px dashed #60A5FA;
-        border-radius: 16px; padding: 20px; margin-top: 14px; margin-bottom: 14px;
+        border-radius: 18px; padding: 20px; margin-top: 14px; margin-bottom: 14px;
     }
     .money-group-row {
         display: flex; flex-wrap: wrap; align-items: center; gap: 14px;
@@ -398,7 +411,7 @@ st.title("🍱 中餐友善點餐系統")
 tab1, tab2, tab3 = st.tabs(["🛒 友善大圖點餐", "💵 現場收款對帳", "🖨️ 訂單彙整出單"])
 
 # -------------------------------------------------------------
-# 分頁 1：直覺觸控大方塊點餐
+# 分頁 1：直覺觸控大方塊點餐（含加麵大按鍵）
 # -------------------------------------------------------------
 with tab1:
     chosen_date_str = str(st.session_state.target_order_date)
@@ -577,7 +590,7 @@ with tab1:
                         st.rerun()
                     st.markdown('</div>', unsafe_allow_html=True)
 
-    # 5. 步驟 4：大方塊點餐（直接點大框框即可點餐）
+    # 5. 步驟 4：大方塊點餐（直接點大框框即可點餐，支援加麵）
     else:
         u_name = st.session_state.selected_user
         store_name = st.session_state.selected_store
@@ -660,7 +673,7 @@ with tab1:
             st.write("---")
 
         # -------------------------------------------------------------
-        # 若點了大框框但需要挑選規格（例如大小碗或意麵/米粉），在此聚焦挑選
+        # 規格與【加麵】選擇視窗（鍋燒意麵選單完整保留加麵選項）
         # -------------------------------------------------------------
         if st.session_state.active_spec_item is not None:
             spec_item = st.session_state.active_spec_item
@@ -668,44 +681,92 @@ with tab1:
             sp_base_p = spec_item["price"]
             sp_options = spec_item["options"]
             sp_icon = spec_item["icon"]
-            p_is_liumei = "劉妹" in str(store_name)
+            can_add_noodle = spec_item["allow_extra"]
+
+            if "cur_pick_spec" not in st.session_state:
+                st.session_state.cur_pick_spec = sp_options[0]
+            if "cur_pick_ex" not in st.session_state:
+                st.session_state.cur_pick_ex = "不加麵"
+
+            cur_spec = st.session_state.cur_pick_spec
+            cur_ex = st.session_state.cur_pick_ex
 
             st.markdown(f"""
             <div class="pos-focus-card">
-                <div style="font-size:34px; font-weight:900; color:#1E3A8A; margin-bottom:8px;">
-                    {sp_icon} 請點選【{sp_name}】的規格：
+                <div style="font-size:36px; font-weight:900; color:#1E3A8A; margin-bottom:8px;">
+                    {sp_icon} 正在選擇：【{sp_name}】
                 </div>
-                <div style="font-size:24px; color:#64748B;">（直接點下方大按鈕即可加入）</div>
+                <div style="font-size:26px; color:#334155;">
+                    基本單價：<b style="color:#059669; font-size:30px;">${fmt_price(sp_base_p)} 元</b>
+                </div>
             </div>
             """, unsafe_allow_html=True)
 
-            # 規格橫向大按鈕：點了直接加進點餐籃
-            cols_spec = st.columns(len(sp_options))
-            for o_idx, opt_txt in enumerate(sp_options):
-                opt_extra_p = parse_extra_price(opt_txt)
-                final_item_p = sp_base_p + opt_extra_p
-                with cols_spec[o_idx]:
-                    st.markdown('<div class="h-option-btn">', unsafe_allow_html=True)
-                    if st.button(f"👉 {opt_txt}\n(${fmt_price(final_item_p)}元)", key=f"spec_pick_{o_idx}"):
-                        item_data = {
-                            "item": sp_name,
-                            "spec": opt_txt,
-                            "extra": "不加麵",
-                            "unit_price": final_item_p,
-                            "qty": 1,
-                            "subtotal": final_item_p
-                        }
-                        st.session_state.cart.append(item_data)
-                        st.session_state.just_added_item = item_data
-                        st.session_state.active_spec_item = None
-                        play_speech(f"加入{sp_name}{opt_txt}")
-                        st.rerun()
-                    st.markdown('</div>', unsafe_allow_html=True)
+            # 1. 種類規格橫式大按鈕（意麵/冬粉/油麵/米粉等）
+            if len(sp_options) > 1:
+                st.markdown("<div style='font-size:24px; font-weight:900; color:#1E3A8A; margin-bottom:10px;'>👉 1. 請點選種類：</div>", unsafe_allow_html=True)
+                cols_spec = st.columns(len(sp_options))
+                for o_idx, opt_txt in enumerate(sp_options):
+                    is_active = (cur_spec == opt_txt)
+                    opt_class = "h-option-btn-active" if is_active else "h-option-btn"
+                    btn_label = f"✅ {opt_txt}" if is_active else opt_txt
+                    with cols_spec[o_idx]:
+                        st.markdown(f'<div class="{opt_class}">', unsafe_allow_html=True)
+                        if st.button(btn_label, key=f"spec_choice_btn_{o_idx}"):
+                            st.session_state.cur_pick_spec = opt_txt
+                            play_speech(opt_txt)
+                            st.rerun()
+                        st.markdown('</div>', unsafe_allow_html=True)
+
+            # 2. 加麵橫向大按鈕（支援鍋燒意麵與麵類店家）
+            if can_add_noodle:
+                st.markdown("<div style='font-size:24px; font-weight:900; color:#1E3A8A; margin-top:14px; margin-bottom:10px;'>👉 2. 份量要不要加麵？</div>", unsafe_allow_html=True)
+                ex_cols = st.columns(2)
+                for e_idx, ex_txt in enumerate(["不加麵", "要加麵 (+15元)"]):
+                    is_ex_active = (cur_ex == ex_txt)
+                    ex_class = "h-option-btn-active" if is_ex_active else "h-option-btn"
+                    ex_label = f"✅ {ex_txt}" if is_ex_active else ex_txt
+                    with ex_cols[e_idx]:
+                        st.markdown(f'<div class="{ex_class}">', unsafe_allow_html=True)
+                        if st.button(ex_label, key=f"ex_choice_btn_{e_idx}"):
+                            st.session_state.cur_pick_ex = ex_txt
+                            play_speech(ex_txt)
+                            st.rerun()
+                        st.markdown('</div>', unsafe_allow_html=True)
+
+            # 計算最終單價
+            opt_extra_p = parse_extra_price(cur_spec)
+            ex_extra_p = 15 if cur_ex == "要加麵 (+15元)" else 0
+            final_item_price = sp_base_p + opt_extra_p + ex_extra_p
+
+            can_confirm = (u_lim == 0) or (final_item_price <= remain_budget)
 
             st.write("")
-            if st.button("❌ 放棄不點這道", use_container_width=True):
-                st.session_state.active_spec_item = None
-                st.rerun()
+            b_c1, b_c2 = st.columns([2, 1])
+            with b_c1:
+                confirm_txt = f"🛒 確認加入（{cur_spec} ｜ {cur_ex}，共 ${fmt_price(final_item_price)} 元）" if can_confirm else f"❌ 超出今日限額（剩 ${fmt_price(remain_budget)} 元）"
+                if st.button(confirm_txt, type="primary", use_container_width=True, disabled=not can_confirm):
+                    item_data = {
+                        "item": sp_name,
+                        "spec": cur_spec,
+                        "extra": cur_ex,
+                        "unit_price": final_item_price,
+                        "qty": 1,
+                        "subtotal": final_item_price
+                    }
+                    st.session_state.cart.append(item_data)
+                    st.session_state.just_added_item = item_data
+                    st.session_state.active_spec_item = None
+                    del st.session_state.cur_pick_spec
+                    del st.session_state.cur_pick_ex
+                    play_speech(f"加入{sp_name}")
+                    st.rerun()
+            with b_c2:
+                if st.button("❌ 放棄不點這道", use_container_width=True):
+                    st.session_state.active_spec_item = None
+                    del st.session_state.cur_pick_spec
+                    del st.session_state.cur_pick_ex
+                    st.rerun()
 
             st.write("---")
 
@@ -719,7 +780,7 @@ with tab1:
                 with cc1:
                     st.markdown(f"""
                     <div style="font-size:24px; padding:10px 0; border-bottom:2px solid #E2E8F0;">
-                        🍲 <b>{c_item['item']}</b> ｜ 種類：<b>{c_item['spec']}</b> ｜ <b>{c_item['qty']} 份</b> ｜ <b style="color:#EA580C;">${fmt_price(c_item['subtotal'])} 元</b>
+                        🍲 <b>{c_item['item']}</b> ｜ 種類：<b>{c_item['spec']}</b> ｜ {c_item.get('extra', '不加麵')} ｜ <b>{c_item['qty']} 份</b> ｜ <b style="color:#EA580C;">${fmt_price(c_item['subtotal'])} 元</b>
                     </div>
                     """, unsafe_allow_html=True)
                 with cc2:
@@ -767,7 +828,7 @@ with tab1:
             st.write("---")
 
         # -------------------------------------------------------------
-        # 餐點大方塊矩陣列表（直接按大框框就能點餐）
+        # 餐點大方塊矩陣列表
         # -------------------------------------------------------------
         current_store_menu = df_menu[df_menu["店家名稱"] == store_name] if "店家名稱" in df_menu.columns else df_menu
 
@@ -832,7 +893,10 @@ with tab1:
                 else:
                     type_options = ["標準份量"]
 
-                has_multiple_options = len(type_options) > 1
+                # 判斷是否支援加麵選項（劉妹鍋燒意麵或餐點包含意麵/麵類）
+                allow_extra = ("劉妹" in str(store_name)) or ("意麵" in i_name) or ("麵" in category)
+
+                has_multiple_options = len(type_options) > 1 or allow_extra
                 hint_str = "（點我看規格）" if has_multiple_options else "（直接點這道）"
                 btn_tile_label = f"{food_icon} {i_name}\n${fmt_price(base_p)} 元 {hint_str}"
 
@@ -844,8 +908,11 @@ with tab1:
                                 "name": i_name,
                                 "price": base_p,
                                 "options": type_options,
-                                "icon": food_icon
+                                "icon": food_icon,
+                                "allow_extra": allow_extra
                             }
+                            st.session_state.cur_pick_spec = type_options[0]
+                            st.session_state.cur_pick_ex = "不加麵"
                             play_speech(f"請選擇{i_name}的規格")
                             st.rerun()
                         else:
@@ -952,7 +1019,7 @@ with tab2:
                         board_html = "<div class='money-visual-board'>"
                         if c100 > 0: board_html += f"<div class='money-group-row'>{''.join([SVG_100 for _ in range(c100)])}</div>"
                         if c50 > 0: board_html += f"<div class='money-group-row'>{''.join([SVG_50 for _ in range(c50)])}</div>"
-                        if c10 > 0: board_html += f"<div class='money-group-row'>{''.join([SVG_100 for _ in range(c10)])}</div>"
+                        if c10 > 0: board_html += f"<div class='money-group-row'>{''.join([SVG_10 for _ in range(c10)])}</div>"
                         if c5 > 0: board_html += f"<div class='money-group-row'>{''.join([SVG_5 for _ in range(c5)])}</div>"
                         if c1 > 0: board_html += f"<div class='money-group-row'>{''.join([SVG_1 for _ in range(c1)])}</div>"
                         board_html += "</div>"
