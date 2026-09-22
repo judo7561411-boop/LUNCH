@@ -89,6 +89,24 @@ st.markdown("""
     html { scroll-behavior: smooth; }
     html, body, [class*="css"] { font-size: 24px; font-weight: 700; }
 
+    /* 頂部主導航分頁大按鍵 */
+    .nav-tab-btn button {
+        width: 100% !important; min-height: 85px !important;
+        font-size: 26px !important; font-weight: 900 !important;
+        border-radius: 18px !important; border: 3px solid #CBD5E1 !important;
+        background-color: #F8FAFC !important; color: #475569 !important;
+        margin-bottom: 20px !important;
+    }
+    .nav-tab-btn-active button {
+        width: 100% !important; min-height: 85px !important;
+        font-size: 26px !important; font-weight: 900 !important;
+        border-radius: 18px !important; border: 4px solid #1D4ED8 !important;
+        background: linear-gradient(135deg, #2563EB 0%, #1D4ED8 100%) !important;
+        color: #FFFFFF !important;
+        box-shadow: 0 6px 16px rgba(37,99,235,0.35) !important;
+        margin-bottom: 20px !important;
+    }
+
     .aac-step-banner {
         background-color: #FEF3C7;
         border-left: 12px solid #F59E0B;
@@ -238,6 +256,20 @@ st.markdown("""
         background-color: #2563EB !important; color: #FFFFFF !important;
         margin-bottom: 10px !important; box-shadow: 0 4px 12px rgba(37,99,235,0.35) !important;
     }
+
+    .order-row-card {
+        background-color: #FFFFFF; border: 1.5px solid #E2E8F0;
+        border-radius: 14px; padding: 16px 20px; margin-bottom: 14px;
+        box-shadow: 0 2px 6px rgba(0,0,0,0.04);
+    }
+    .receipt-box {
+        background-color: #FFFFFF; border: 2px dashed #475569;
+        border-radius: 16px; padding: 24px; margin-top: 16px; margin-bottom: 24px;
+    }
+    .receipt-header {
+        text-align: center; border-bottom: 2px dashed #94A3B8;
+        padding-bottom: 16px; margin-bottom: 18px;
+    }
 </style>
 """, unsafe_allow_html=True)
 
@@ -321,6 +353,10 @@ def sync_to_google_sheet(payload):
     except Exception as e:
         return False, str(e)
 
+# 鎖定主導航分頁（避免 rerun 後跳回點餐頁）
+if "active_main_tab" not in st.session_state:
+    st.session_state.active_main_tab = "tab_order"
+
 if "order_step" not in st.session_state:
     st.session_state.order_step = "DATE"
 if "target_order_date" not in st.session_state:
@@ -364,17 +400,44 @@ render_speech_player()
 
 st.title("🍱 中餐友善點餐系統")
 
-tab1, tab2, tab3 = st.tabs(["🛒 友善大圖點餐", "💵 現場收款對帳", "🖨️ 訂單彙整出單"])
+# 頂部受控主分頁導航（保證切換與重整時不跳頁）
+nav_col1, nav_col2, nav_col3 = st.columns(3)
+with nav_col1:
+    is_active = (st.session_state.active_main_tab == "tab_order")
+    btn_class = "nav-tab-btn-active" if is_active else "nav-tab-btn"
+    st.markdown(f'<div class="{btn_class}">', unsafe_allow_html=True)
+    if st.button("🛒 友善大圖點餐", key="nav_btn_order"):
+        st.session_state.active_main_tab = "tab_order"
+        st.rerun()
+    st.markdown('</div>', unsafe_allow_html=True)
+
+with nav_col2:
+    is_active = (st.session_state.active_main_tab == "tab_recon")
+    btn_class = "nav-tab-btn-active" if is_active else "nav-tab-btn"
+    st.markdown(f'<div class="{btn_class}">', unsafe_allow_html=True)
+    if st.button("💵 現場收款對帳", key="nav_btn_recon"):
+        st.session_state.active_main_tab = "tab_recon"
+        st.rerun()
+    st.markdown('</div>', unsafe_allow_html=True)
+
+with nav_col3:
+    is_active = (st.session_state.active_main_tab == "tab_report")
+    btn_class = "nav-tab-btn-active" if is_active else "nav-tab-btn"
+    st.markdown(f'<div class="{btn_class}">', unsafe_allow_html=True)
+    if st.button("🖨️ 訂單彙整出單", key="nav_btn_report"):
+        st.session_state.active_main_tab = "tab_report"
+        st.rerun()
+    st.markdown('</div>', unsafe_allow_html=True)
+
+st.write("---")
 
 # -------------------------------------------------------------
-# 分頁 1：畫面式逐項轉跳點餐（價格由低到高排序）
+# 分頁 1：畫面式逐項轉跳點餐
 # -------------------------------------------------------------
-with tab1:
+if st.session_state.active_main_tab == "tab_order":
     chosen_date_str = str(st.session_state.target_order_date)
 
-    # ==========================================
     # 畫面 A：送單完成（大字顯示金額，付給收錢人員）
-    # ==========================================
     if st.session_state.order_step == "FINISH":
         order_total_pay = st.session_state.last_order_total
         st.markdown(f"""
@@ -415,9 +478,7 @@ with tab1:
             reset_ordering()
             st.rerun()
 
-    # ==========================================
     # 畫面 1：選擇日期
-    # ==========================================
     elif st.session_state.order_step == "DATE":
         st.markdown('<div class="aac-step-banner">📅 第 1 步：請點選想吃哪一天的午餐？</div>', unsafe_allow_html=True)
         workweek_list = get_current_workweek_dates()
@@ -447,9 +508,7 @@ with tab1:
                 queue_speech(f"選擇日期{custom_date.strftime('%m月%d日')}，請問你是誰？")
                 st.rerun()
 
-    # ==========================================
     # 畫面 2：選擇同學姓名
-    # ==========================================
     elif st.session_state.order_step == "USER":
         c_head1, c_head2 = st.columns([4, 1])
         with c_head1:
@@ -493,9 +552,7 @@ with tab1:
                         st.rerun()
                     st.markdown('</div>', unsafe_allow_html=True)
 
-    # ==========================================
     # 畫面 2-B：今日已點餐提示
-    # ==========================================
     elif st.session_state.order_step == "ALREADY_DONE":
         u_name = st.session_state.selected_user
         all_orders = st.session_state.orders_data
@@ -533,9 +590,7 @@ with tab1:
                 queue_speech("加點其他餐點，請選店家")
                 st.rerun()
 
-    # ==========================================
     # 畫面 3：選擇店家
-    # ==========================================
     elif st.session_state.order_step == "STORE":
         u_name = st.session_state.selected_user
         u_lim = st.session_state.user_daily_limit
@@ -563,9 +618,7 @@ with tab1:
                     st.rerun()
                 st.markdown('</div>', unsafe_allow_html=True)
 
-    # ==========================================
-    # 畫面 4：挑選餐點大框框（價格由低到高嚴格排序）
-    # ==========================================
+    # 畫面 4：挑選餐點大框框
     elif st.session_state.order_step == "FOOD":
         u_name = st.session_state.selected_user
         store_name = st.session_state.selected_store
@@ -621,9 +674,7 @@ with tab1:
         else:
             filtered_menu = current_store_menu.copy()
 
-        # -------------------------------------------------------------
-        # 價格由低到高排序 (Price: Low to High)
-        # -------------------------------------------------------------
+        # 價格由低到高排序
         filtered_menu["parsed_price"] = filtered_menu["單價"].apply(parse_price)
         filtered_menu = filtered_menu.sort_values(by="parsed_price", ascending=True)
 
@@ -694,9 +745,7 @@ with tab1:
                         st.rerun()
                     st.markdown('</div>', unsafe_allow_html=True)
 
-    # ==========================================
-    # 畫面 5：畫面式挑選規格（意麵/冬粉/油麵/大小碗）
-    # ==========================================
+    # 畫面 5：挑選規格
     elif st.session_state.order_step == "SPEC":
         cur_item = st.session_state.current_picking_item
         p_name = cur_item["name"]
@@ -741,9 +790,7 @@ with tab1:
                     st.rerun()
                 st.markdown('</div>', unsafe_allow_html=True)
 
-    # ==========================================
-    # 畫面 6：畫面式挑選加麵（鍋燒意麵專屬）
-    # ==========================================
+    # 畫面 6：挑選加麵
     elif st.session_state.order_step == "EXTRA":
         cur_item = st.session_state.current_picking_item
         p_name = cur_item["name"]
@@ -797,9 +844,7 @@ with tab1:
                 st.rerun()
             st.markdown('</div>', unsafe_allow_html=True)
 
-    # ==========================================
-    # 畫面 7：點餐完成確認（可繼續點或直接送單）
-    # ==========================================
+    # 畫面 7：點餐確認
     elif st.session_state.order_step == "CART_CONFIRM":
         u_name = st.session_state.selected_user
         cart_sum = sum(x["subtotal"] for x in st.session_state.cart)
@@ -868,9 +913,9 @@ with tab1:
                     st.rerun()
 
 # -------------------------------------------------------------
-# 分頁 2：現場收款對帳（付給收錢人員）
+# 分頁 2：現場收款對帳（鎖定當前頁面，點擊不再跳轉）
 # -------------------------------------------------------------
-with tab2:
+elif st.session_state.active_main_tab == "tab_recon":
     st.subheader("💵 現場收款、找零與訂單維護")
     q_date = st.date_input("選擇收款日期", value=st.session_state.target_order_date, key="q_date_recon")
     if st.button("🔄 重新載入最新資料", key="btn_reload_recon"):
@@ -1053,9 +1098,9 @@ with tab2:
                 st.markdown('</div>', unsafe_allow_html=True)
 
 # -------------------------------------------------------------
-# 分頁 3：訂單彙整出單
+# 分頁 3：訂單彙整出單（鎖定當前頁面）
 # -------------------------------------------------------------
-with tab3:
+elif st.session_state.active_main_tab == "tab_report":
     st.subheader("🖨️ 中餐訂單出單與分發彙整表")
     
     col_od1, col_od2 = st.columns([2, 1])
