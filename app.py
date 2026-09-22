@@ -35,11 +35,24 @@ def render_speech_player():
                 window.speechSynthesis.cancel();
                 var msg = new SpeechSynthesisUtterance('{txt}');
                 msg.lang = 'zh-TW';
-                msg.rate = 0.95;
+                msg.rate = 0.90;
+                msg.pitch = 1.05;
                 window.speechSynthesis.speak(msg);
             }}
         </script>
         """, height=0)
+
+def get_first_name(full_name):
+    name_str = str(full_name).strip()
+    if not name_str:
+        return ""
+    double_surnames = ["歐陽", "司徒", "諸葛", "公孫", "上官", "夏侯", "皇甫"]
+    for ds in double_surnames:
+        if name_str.startswith(ds) and len(name_str) > 2:
+            return name_str[2:]
+    if len(name_str) >= 2:
+        return name_str[1:]
+    return name_str
 
 def get_current_workweek_dates():
     today = date.today()
@@ -89,7 +102,6 @@ st.markdown("""
     html { scroll-behavior: smooth; }
     html, body, [class*="css"] { font-size: 24px; font-weight: 700; }
 
-    /* 頂部主導航分頁大按鍵 */
     .nav-tab-btn button {
         width: 100% !important; min-height: 85px !important;
         font-size: 26px !important; font-weight: 900 !important;
@@ -353,7 +365,6 @@ def sync_to_google_sheet(payload):
     except Exception as e:
         return False, str(e)
 
-# 鎖定主導航分頁（避免 rerun 後跳回點餐頁）
 if "active_main_tab" not in st.session_state:
     st.session_state.active_main_tab = "tab_order"
 
@@ -400,7 +411,7 @@ render_speech_player()
 
 st.title("🍱 中餐友善點餐系統")
 
-# 頂部受控主分頁導航（保證切換與重整時不跳頁）
+# 頂部主導航
 nav_col1, nav_col2, nav_col3 = st.columns(3)
 with nav_col1:
     is_active = (st.session_state.active_main_tab == "tab_order")
@@ -408,6 +419,7 @@ with nav_col1:
     st.markdown(f'<div class="{btn_class}">', unsafe_allow_html=True)
     if st.button("🛒 友善大圖點餐", key="nav_btn_order"):
         st.session_state.active_main_tab = "tab_order"
+        queue_speech("來到點餐頁面囉！")
         st.rerun()
     st.markdown('</div>', unsafe_allow_html=True)
 
@@ -417,6 +429,7 @@ with nav_col2:
     st.markdown(f'<div class="{btn_class}">', unsafe_allow_html=True)
     if st.button("💵 現場收款對帳", key="nav_btn_recon"):
         st.session_state.active_main_tab = "tab_recon"
+        queue_speech("收錢人員對帳頁面")
         st.rerun()
     st.markdown('</div>', unsafe_allow_html=True)
 
@@ -426,6 +439,7 @@ with nav_col3:
     st.markdown(f'<div class="{btn_class}">', unsafe_allow_html=True)
     if st.button("🖨️ 訂單彙整出單", key="nav_btn_report"):
         st.session_state.active_main_tab = "tab_report"
+        queue_speech("訂單出單彙整表")
         st.rerun()
     st.markdown('</div>', unsafe_allow_html=True)
 
@@ -437,13 +451,15 @@ st.write("---")
 if st.session_state.active_main_tab == "tab_order":
     chosen_date_str = str(st.session_state.target_order_date)
 
-    # 畫面 A：送單完成（大字顯示金額，付給收錢人員）
+    # 畫面 A：送單完成
     if st.session_state.order_step == "FINISH":
         order_total_pay = st.session_state.last_order_total
+        display_first_name = get_first_name(st.session_state.selected_user)
+
         st.markdown(f"""
         <div class="big-pay-card">
             <div style="font-size: 38px; font-weight: 900; color: #166534; margin-bottom: 12px;">
-                🎉 【{st.session_state.selected_user}】點好餐囉！
+                🎉 【{display_first_name}】點好餐囉！
             </div>
             <div style="font-size: 28px; color: #374151; margin-bottom: 16px;">
                 📅 預訂日期：<b>{chosen_date_str}</b>
@@ -473,8 +489,8 @@ if st.session_state.active_main_tab == "tab_order":
             st.markdown(board_html, unsafe_allow_html=True)
 
         st.write("")
-        if st.button("👉 換下一位同學點餐", type="primary", use_container_width=True):
-            queue_speech("換下一位同學，請選日期")
+        if st.button("👉 換下一位好朋友點餐", type="primary", use_container_width=True):
+            queue_speech("換下一位好朋友囉，請點選用餐日期！")
             reset_ordering()
             st.rerun()
 
@@ -490,7 +506,7 @@ if st.session_state.active_main_tab == "tab_order":
                 if st.button(w["label"], key=f"scr_date_{idx}"):
                     st.session_state.target_order_date = w["date"]
                     st.session_state.order_step = "USER"
-                    queue_speech(f"選擇{w['weekday_zh']}，請問你是誰？")
+                    queue_speech(f"好的，選了{w['weekday_zh']}的午餐！請問是哪一位好朋友呢？")
                     st.rerun()
                 st.markdown('</div>', unsafe_allow_html=True)
 
@@ -505,18 +521,18 @@ if st.session_state.active_main_tab == "tab_order":
             if st.button("👉 確認這個日期", type="primary", use_container_width=True):
                 st.session_state.target_order_date = custom_date
                 st.session_state.order_step = "USER"
-                queue_speech(f"選擇日期{custom_date.strftime('%m月%d日')}，請問你是誰？")
+                queue_speech(f"好的，選了{custom_date.strftime('%m月%d日')}！請問是哪一位好朋友呢？")
                 st.rerun()
 
-    # 畫面 2：選擇同學姓名
+    # 畫面 2：選擇姓名
     elif st.session_state.order_step == "USER":
         c_head1, c_head2 = st.columns([4, 1])
         with c_head1:
-            st.markdown(f'<div class="aac-step-banner">👤 第 2 步：請問你是哪一位同學？（預訂：{chosen_date_str}）</div>', unsafe_allow_html=True)
+            st.markdown(f'<div class="aac-step-banner">👤 第 2 步：請問你是哪一位好朋友？（預訂：{chosen_date_str}）</div>', unsafe_allow_html=True)
         with c_head2:
             if st.button("⬅️ 重選日期", use_container_width=True):
                 st.session_state.order_step = "DATE"
-                queue_speech("重選日期")
+                queue_speech("好的，我們重選日期！")
                 st.rerun()
 
         all_orders = st.session_state.orders_data
@@ -528,33 +544,35 @@ if st.session_state.active_main_tab == "tab_order":
         if not df_users.empty and "姓名" in df_users.columns:
             u_cols = st.columns(2)
             for idx, (_, u) in enumerate(df_users.iterrows()):
-                u_name = str(u["姓名"]).strip()
+                u_full_name = str(u["姓名"]).strip()
+                u_first_name = get_first_name(u_full_name)
                 u_lim = parse_price(u.get("金額限制", 0))
                 lim_text = f"限額 ${fmt_price(u_lim)} 元" if u_lim > 0 else "無金額上限"
                 
-                is_already_ordered = (u_name in ordered_users_today)
-                btn_u_label = f"👤 {u_name}\n（✅ 今天已經點過囉）" if is_already_ordered else f"👤 {u_name}\n（{lim_text}）"
+                is_already_ordered = (u_full_name in ordered_users_today)
+                btn_u_label = f"👤 {u_first_name}\n（✅ 今天已經點過囉）" if is_already_ordered else f"👤 {u_first_name}\n（{lim_text}）"
                 btn_class = "user-btn-done" if is_already_ordered else "user-btn"
 
                 with u_cols[idx % 2]:
                     st.markdown(f'<div class="{btn_class}">', unsafe_allow_html=True)
                     if st.button(btn_u_label, key=f"scr_user_{idx}"):
-                        st.session_state.selected_user = u_name
+                        st.session_state.selected_user = u_full_name
                         st.session_state.user_daily_limit = u_lim
                         
                         if is_already_ordered:
                             st.session_state.order_step = "ALREADY_DONE"
-                            queue_speech(f"{u_name}同學，你今天已經點過餐囉")
+                            queue_speech(f"{u_first_name}，你今天已經點過餐囉！不用再重複點了喔！")
                         else:
                             st.session_state.order_step = "STORE"
-                            lim_speech = f"今日限額{int(u_lim)}元" if u_lim > 0 else "無金額限制"
-                            queue_speech(f"{u_name}好，{lim_speech}，請選想吃哪一家")
+                            lim_speech = f"今天有{int(u_lim)}元的零用額度" if u_lim > 0 else "沒有預算限制"
+                            queue_speech(f"{u_first_name}，你好！{lim_speech}，來選想吃哪一家好吃的吧！")
                         st.rerun()
                     st.markdown('</div>', unsafe_allow_html=True)
 
     # 畫面 2-B：今日已點餐提示
     elif st.session_state.order_step == "ALREADY_DONE":
         u_name = st.session_state.selected_user
+        u_first_name = get_first_name(u_name)
         all_orders = st.session_state.orders_data
         date_mask = all_orders["訂購日期"].astype(str).str.replace("-", "/").str.contains(chosen_date_str.replace("-", "/"))
         user_done_df = all_orders[date_mask & (all_orders["員工姓名"] == u_name)]
@@ -564,7 +582,7 @@ if st.session_state.active_main_tab == "tab_order":
         st.markdown(f"""
         <div class="big-pay-card" style="border-color:#64748B;">
             <div style="font-size:38px; font-weight:900; color:#1E293B; margin-bottom:12px;">
-                ✅ 【{u_name}】您今天已經點過餐囉！
+                ✅ 【{u_first_name}】您今天已經點過餐囉！
             </div>
             <div style="font-size:28px; color:#334155; margin-bottom:14px;">
                 🍲 已點餐點：<b>{ordered_items_text}</b>
@@ -580,29 +598,30 @@ if st.session_state.active_main_tab == "tab_order":
 
         col_bk1, col_bk2 = st.columns(2)
         with col_bk1:
-            if st.button("👉 換下一位同學點餐", type="primary", use_container_width=True):
-                queue_speech("換下一位同學")
+            if st.button("👉 換下一位好朋友點餐", type="primary", use_container_width=True):
+                queue_speech("換下一位好朋友！")
                 reset_ordering()
                 st.rerun()
         with col_bk2:
             if st.button("➕ 我還要再加點其他食物", use_container_width=True):
                 st.session_state.order_step = "STORE"
-                queue_speech("加點其他餐點，請選店家")
+                queue_speech("想要再多吃一點嗎？請挑選店家！")
                 st.rerun()
 
     # 畫面 3：選擇店家
     elif st.session_state.order_step == "STORE":
         u_name = st.session_state.selected_user
+        u_first_name = get_first_name(u_name)
         u_lim = st.session_state.user_daily_limit
 
         c1, c2 = st.columns([4, 1])
         with c1:
             lim_msg = f"每日限額：${fmt_price(u_lim)} 元" if u_lim > 0 else "無預算上限"
-            st.markdown(f'<div class="aac-step-banner">🏪 第 3 步：想吃哪一家？（{u_name}，{lim_msg}）</div>', unsafe_allow_html=True)
+            st.markdown(f'<div class="aac-step-banner">🏪 第 3 步：想吃哪一家？（{u_first_name}，{lim_msg}）</div>', unsafe_allow_html=True)
         with c2:
             if st.button("⬅️ 重選名字", use_container_width=True):
                 st.session_state.order_step = "USER"
-                queue_speech("重選姓名")
+                queue_speech("沒問題，重選名字！")
                 st.rerun()
 
         store_list = df_menu["店家名稱"].dropna().unique().tolist() if "店家名稱" in df_menu.columns else ["主要合作店家"]
@@ -614,13 +633,14 @@ if st.session_state.active_main_tab == "tab_order":
                     st.session_state.selected_store = s_name
                     st.session_state.selected_category = "全部"
                     st.session_state.order_step = "FOOD"
-                    queue_speech(f"選擇{s_name}，請按大框框選餐點")
+                    queue_speech(f"選了{s_name}，裡面有很多好吃的，直接按大方塊點餐吧！")
                     st.rerun()
                 st.markdown('</div>', unsafe_allow_html=True)
 
     # 畫面 4：挑選餐點大框框
     elif st.session_state.order_step == "FOOD":
         u_name = st.session_state.selected_user
+        u_first_name = get_first_name(u_name)
         store_name = st.session_state.selected_store
         u_lim = st.session_state.user_daily_limit
 
@@ -644,7 +664,7 @@ if st.session_state.active_main_tab == "tab_order":
         with c2:
             if st.button("⬅️ 更換店家", use_container_width=True):
                 st.session_state.order_step = "STORE"
-                queue_speech("更換店家")
+                queue_speech("想換別家吃看看嗎？好的！")
                 st.rerun()
 
         current_store_menu = df_menu[df_menu["店家名稱"] == store_name] if "店家名稱" in df_menu.columns else df_menu
@@ -662,7 +682,7 @@ if st.session_state.active_main_tab == "tab_order":
                 st.markdown(f'<div class="{btn_style}">', unsafe_allow_html=True)
                 if st.button(get_category_icon(cat_name), key=f"scr_cat_{c_idx}"):
                     st.session_state.selected_category = cat_name
-                    queue_speech(f"切換到{cat_name}")
+                    queue_speech(f"看{cat_name}的餐點")
                     st.rerun()
                 st.markdown('</div>', unsafe_allow_html=True)
 
@@ -674,7 +694,6 @@ if st.session_state.active_main_tab == "tab_order":
         else:
             filtered_menu = current_store_menu.copy()
 
-        # 價格由低到高排序
         filtered_menu["parsed_price"] = filtered_menu["單價"].apply(parse_price)
         filtered_menu = filtered_menu.sort_values(by="parsed_price", ascending=True)
 
@@ -686,7 +705,7 @@ if st.session_state.active_main_tab == "tab_order":
             affordable_items.append(item_row)
 
         if not affordable_items:
-            st.warning("⚠️ 此分類目前沒有符合您剩餘預算的食物喔！")
+            st.warning("⚠️ 這個分類目前沒有符合您剩餘預算的食物喔！")
         else:
             pos_cols = st.columns(2)
             for idx, item in enumerate(affordable_items):
@@ -725,11 +744,11 @@ if st.session_state.active_main_tab == "tab_order":
                         
                         if has_spec:
                             st.session_state.order_step = "SPEC"
-                            queue_speech(f"請選擇{i_name}的規格")
+                            queue_speech(f"想吃{i_name}呀！請問想要哪一種麵或份量呢？")
                         elif allow_extra:
                             st.session_state.picked_spec = type_options[0]
                             st.session_state.order_step = "EXTRA"
-                            queue_speech(f"請問要不要加麵？")
+                            queue_speech(f"{i_name}，請問份量要不要加麵吃得更飽呢？")
                         else:
                             item_data = {
                                 "item": i_name,
@@ -741,7 +760,7 @@ if st.session_state.active_main_tab == "tab_order":
                             }
                             st.session_state.cart.append(item_data)
                             st.session_state.order_step = "CART_CONFIRM"
-                            queue_speech(f"成功放入{i_name}")
+                            queue_speech(f"哇！{i_name}聽起來好好吃，已經放進點餐籃囉！")
                         st.rerun()
                     st.markdown('</div>', unsafe_allow_html=True)
 
@@ -760,7 +779,7 @@ if st.session_state.active_main_tab == "tab_order":
         with c2:
             if st.button("⬅️ 重選餐點", use_container_width=True):
                 st.session_state.order_step = "FOOD"
-                queue_speech("重選餐點")
+                queue_speech("好的，重新挑選餐點！")
                 st.rerun()
 
         cols_spec = st.columns(min(len(p_options), 3))
@@ -774,7 +793,7 @@ if st.session_state.active_main_tab == "tab_order":
                     
                     if allow_extra:
                         st.session_state.order_step = "EXTRA"
-                        queue_speech(f"選擇{opt_txt}，請問要不要加麵？")
+                        queue_speech(f"選了{opt_txt}！請問要不要加麵吃更飽？")
                     else:
                         item_data = {
                             "item": p_name,
@@ -786,7 +805,7 @@ if st.session_state.active_main_tab == "tab_order":
                         }
                         st.session_state.cart.append(item_data)
                         st.session_state.order_step = "CART_CONFIRM"
-                        queue_speech(f"成功放入{p_name}{opt_txt}")
+                        queue_speech(f"太棒了！{p_name}{opt_txt}，幫你放進點餐籃囉！")
                     st.rerun()
                 st.markdown('</div>', unsafe_allow_html=True)
 
@@ -804,7 +823,7 @@ if st.session_state.active_main_tab == "tab_order":
         with c2:
             if st.button("⬅️ 重選規格", use_container_width=True):
                 st.session_state.order_step = "SPEC" if len(cur_item["options"]) > 1 else "FOOD"
-                queue_speech("重選規格")
+                queue_speech("重選規格！")
                 st.rerun()
 
         cols_ex = st.columns(2)
@@ -822,7 +841,7 @@ if st.session_state.active_main_tab == "tab_order":
                 }
                 st.session_state.cart.append(item_data)
                 st.session_state.order_step = "CART_CONFIRM"
-                queue_speech(f"不加麵，已放入點餐籃")
+                queue_speech(f"好的，正常份量不加麵，已經放入點餐籃囉！")
                 st.rerun()
             st.markdown('</div>', unsafe_allow_html=True)
 
@@ -840,7 +859,7 @@ if st.session_state.active_main_tab == "tab_order":
                 }
                 st.session_state.cart.append(item_data)
                 st.session_state.order_step = "CART_CONFIRM"
-                queue_speech(f"加麵，已放入點餐籃")
+                queue_speech(f"好的，大份量加麵，已經放入點餐籃囉！")
                 st.rerun()
             st.markdown('</div>', unsafe_allow_html=True)
 
@@ -868,7 +887,7 @@ if st.session_state.active_main_tab == "tab_order":
         with c_opt1:
             if st.button("➕ 我還要再點別的", use_container_width=True):
                 st.session_state.order_step = "FOOD"
-                queue_speech("繼續選其他餐點")
+                queue_speech("肚子還會餓嗎？我們繼續挑別的餐點！")
                 st.rerun()
 
         with c_opt2:
@@ -894,7 +913,7 @@ if st.session_state.active_main_tab == "tab_order":
                 st.session_state.last_order_total = cart_sum
                 with st.spinner("正在送出訂單..."):
                     sync_to_google_sheet({"action": "append", "rows": new_rows})
-                queue_speech(f"點單成功，請把{int(cart_sum)}元現金交給收錢人員")
+                queue_speech(f"太棒了！點好囉，請記得準備{int(cart_sum)}元，拿給收錢的人員喔！")
                 st.session_state.order_step = "FINISH"
                 st.rerun()
 
@@ -909,18 +928,18 @@ if st.session_state.active_main_tab == "tab_order":
                     st.session_state.cart.pop(c_idx)
                     if not st.session_state.cart:
                         st.session_state.order_step = "FOOD"
-                    queue_speech("已取消這道菜")
+                    queue_speech("這道菜已經拿出來囉！")
                     st.rerun()
 
 # -------------------------------------------------------------
-# 分頁 2：現場收款對帳（鎖定當前頁面，點擊不再跳轉）
+# 分頁 2：現場收款對帳
 # -------------------------------------------------------------
 elif st.session_state.active_main_tab == "tab_recon":
     st.subheader("💵 現場收款、找零與訂單維護")
     q_date = st.date_input("選擇收款日期", value=st.session_state.target_order_date, key="q_date_recon")
     if st.button("🔄 重新載入最新資料", key="btn_reload_recon"):
         st.session_state.orders_data = load_orders_from_sheet()
-        queue_speech("已重新載入收款資料")
+        queue_speech("已重新載入最新收款資料！")
         st.rerun()
 
     all_orders = st.session_state.orders_data.copy()
@@ -953,35 +972,37 @@ elif st.session_state.active_main_tab == "tab_recon":
             st.success("🎉 本日全部訂單已收款完畢！可前往【🖨️ 訂單彙整出單】分頁出單。")
         else:
             user_options = unpaid["員工姓名"].dropna().unique().tolist()
+            user_display_map = {u: f"{get_first_name(u)} ({u})" for u in user_options}
             calc_col1, calc_col2 = st.columns([1, 1])
 
             with calc_col1:
-                target_user = st.selectbox("選擇要繳費給收錢人員的同學", options=user_options)
+                target_user = st.selectbox("換下一位收錢", options=user_options, format_func=lambda x: user_display_map.get(x, x))
+                target_first_name = get_first_name(target_user)
                 user_unpaid_items = unpaid[unpaid["員工姓名"] == target_user]
                 target_due = round(user_unpaid_items["金額數值"].sum(), 2)
 
                 st.markdown(f"""
                 <div style="background-color: #FEF2F2; border: 2px solid #F87171; border-radius: 14px; padding: 16px; margin-top: 10px;">
-                    👤 收款對象：<b>{target_user}</b><br>
+                    👤 收款對象：<b>{target_first_name}</b><br>
                     💰 應收金額：<b style="color: #DC2626; font-size: 34px;">${fmt_price(target_due)}</b> 元
                 </div>
                 """, unsafe_allow_html=True)
 
             with calc_col2:
-                st.write("點選同學交給收錢人員的面額：")
+                st.write(f"點選【{target_first_name}】交給收錢人員的面額：")
                 q_col1, q_col2, q_col3 = st.columns(3)
                 with q_col1:
                     if st.button("剛好", key="pay_exact"):
                         st.session_state.received_cash = float(target_due)
-                        queue_speech(f"收剛好{int(target_due)}元")
+                        queue_speech(f"收了剛好的金額，{int(target_due)}元！")
                 with q_col2:
                     if st.button("💵 拿 100", key="pay_100"):
                         st.session_state.received_cash = 100.0
-                        queue_speech("收一百元")
+                        queue_speech("收到一百元鈔票！")
                 with q_col3:
                     if st.button("💵 拿 500", key="pay_500"):
                         st.session_state.received_cash = 500.0
-                        queue_speech("收五百元")
+                        queue_speech("收到五百元大鈔！")
 
                 default_val = st.session_state.get("received_cash", float(target_due))
                 paid_input = st.number_input("或自訂實收金額 (元)", min_value=0.0, value=float(default_val), step=1.0)
@@ -1001,7 +1022,7 @@ elif st.session_state.active_main_tab == "tab_recon":
                     c5, c1 = rem_c // 5, rem_c % 5
 
                     if change > 0:
-                        st.markdown("### 👉 請收錢人員照著畫面「看到幾個就拿幾個」找給同學：")
+                        st.markdown(f"### 👉 請收錢人員照著畫面「看到幾個就拿幾個」找給【{target_first_name}】：")
                         board_html = "<div class='money-visual-board'>"
                         if c100 > 0: board_html += f"<div class='money-group-row'>{''.join([SVG_100 for _ in range(c100)])}</div>"
                         if c50 > 0: board_html += f"<div class='money-group-row'>{''.join([SVG_50 for _ in range(c50)])}</div>"
@@ -1014,7 +1035,7 @@ elif st.session_state.active_main_tab == "tab_recon":
                         st.info("👌 剛好收齊，不需要找錢！")
 
                     st.write("")
-                    if st.button(f"✅ 確認收款完畢（將 {target_user} 設為已付款）", type="primary", use_container_width=True):
+                    if st.button(f"✅ 確認收款完畢（將 {target_first_name} 設為已付款）", type="primary", use_container_width=True):
                         target_indices = st.session_state.orders_data[st.session_state.orders_data["員工姓名"] == target_user].index
                         st.session_state.orders_data.loc[target_indices, "付款狀態"] = "已付款"
                         with st.spinner("同步雲端狀態中..."):
@@ -1023,17 +1044,20 @@ elif st.session_state.active_main_tab == "tab_recon":
                                 "user": target_user,
                                 "status": "已付款"
                             })
-                        queue_speech(f"{target_user}收款完成")
-                        st.success(f"已完成 {target_user} 收款並同步至雲端！")
+                        queue_speech(f"{target_first_name}，付款完成囉！謝謝你！")
+                        st.success(f"已完成 {target_first_name} 收款並同步至雲端！")
                         time.sleep(0.5)
                         st.rerun()
                 else:
-                    st.error(f"⚠️ 還不夠喔！同學還差 ${fmt_price(abs(change))} 元")
+                    st.error(f"⚠️ 還不夠喔！{target_first_name}還差 ${fmt_price(abs(change))} 元")
 
         st.write("---")
         st.markdown("#### 📋 訂單流水清單：")
         for row_idx, row_data in day_orders.iterrows():
             ord_id = row_data.get("訂單編號", "")
+            u_full = str(row_data.get('員工姓名', ''))
+            u_short = get_first_name(u_full)
+
             with st.container():
                 st.markdown('<div class="order-row-card">', unsafe_allow_html=True)
                 r1, r2, r3, r4, r5, r6 = st.columns([1.5, 2, 3.5, 1.5, 2, 1.5])
@@ -1041,7 +1065,7 @@ elif st.session_state.active_main_tab == "tab_recon":
                     st.write(f"**{ord_id}**")
                     st.caption(f"📅 {row_data.get('訂購日期', '')}")
                 with r2:
-                    st.write(f"👤 **{row_data.get('員工姓名', '')}**")
+                    st.write(f"👤 **{u_short}**")
                 with r3:
                     q_info = f" x {row_data.get('數量', 1)}" if str(row_data.get('數量', 1)) not in ["", "1"] else ""
                     st.write(f"{row_data.get('餐點品項', '')}{q_info} ｜ {row_data.get('麵類選擇', '')} ｜ {row_data.get('是否加麵', '')}")
@@ -1056,10 +1080,10 @@ elif st.session_state.active_main_tab == "tab_recon":
                                 sync_to_google_sheet({
                                     "action": "update_status",
                                     "order_id": str(ord_id),
-                                    "user": row_data.get("員工姓名", ""),
+                                    "user": u_full,
                                     "status": "未付款"
                                 })
-                            queue_speech(f"{row_data.get('員工姓名', '')}改為未付款")
+                            queue_speech(f"{u_short}改為未付款狀態")
                             st.rerun()
                     else:
                         if st.button("🔴 未付 (改已付)", key=f"recon_status_{row_idx}_{ord_id}"):
@@ -1068,15 +1092,15 @@ elif st.session_state.active_main_tab == "tab_recon":
                                 sync_to_google_sheet({
                                     "action": "update_status",
                                     "order_id": str(ord_id),
-                                    "user": row_data.get("員工姓名", ""),
+                                    "user": u_full,
                                     "status": "已付款"
                                 })
-                            queue_speech(f"{row_data.get('員工姓名', '')}改為已付款")
+                            queue_speech(f"{u_short}改為已付款狀態")
                             st.rerun()
                 with r6:
                     if st.button("🗑️ 刪除", key=f"recon_del_{row_idx}_{ord_id}", help="刪除這筆訂單"):
                         target_ord = str(ord_id)
-                        target_u = str(row_data.get("員工姓名", ""))
+                        target_u = u_full
                         target_d = str(row_data.get("訂購日期", ""))
                         target_it = str(row_data.get("餐點品項", ""))
                         
@@ -1091,14 +1115,14 @@ elif st.session_state.active_main_tab == "tab_recon":
                                 "date": target_d,
                                 "item": target_it
                             })
-                        queue_speech("訂單已刪除")
+                        queue_speech("這筆訂單已經刪除囉！")
                         st.success("訂單已成功刪除！")
                         time.sleep(0.4)
                         st.rerun()
                 st.markdown('</div>', unsafe_allow_html=True)
 
 # -------------------------------------------------------------
-# 分頁 3：訂單彙整出單（鎖定當前頁面）
+# 分頁 3：訂單彙整出單
 # -------------------------------------------------------------
 elif st.session_state.active_main_tab == "tab_report":
     st.subheader("🖨️ 中餐訂單出單與分發彙整表")
@@ -1110,7 +1134,7 @@ elif st.session_state.active_main_tab == "tab_report":
         st.write("")
         if st.button("🔄 重新整理訂單數據", type="primary", key="btn_refresh_out"):
             st.session_state.orders_data = load_orders_from_sheet()
-            queue_speech("出單數據已刷新")
+            queue_speech("出單數據已經整理好了！")
             st.rerun()
 
     all_orders = st.session_state.orders_data.copy()
@@ -1139,7 +1163,7 @@ elif st.session_state.active_main_tab == "tab_report":
             unpaid_sum = round(unpaid_subset["金額數值"].sum(), 2)
 
             if unpaid_cnt == 0:
-                st.success(f"🎉【{order_out_date}】全體同學皆已完成付款！可直接放心出單給店家。")
+                st.success(f"🎉【{order_out_date}】全體好朋友皆已完成付款！可直接放心出單給店家。")
             else:
                 st.warning(f"⚠️ 提醒：尚有 {unpaid_cnt} 筆訂單尚未付款（待收 ${fmt_price(unpaid_sum)} 元），請先至【💵 現場收款對帳】交給收錢人員完成收款！")
 
@@ -1166,7 +1190,7 @@ elif st.session_state.active_main_tab == "tab_report":
                 "金額數值": "sum",
                 "付款狀態": lambda s: "已付款" if all(x == "已付款" for x in s) else "未付款"
             }).reset_index()
-            person_grouped.columns = ["同學姓名", "點購餐點品項明細", "應付小計", "付款狀態"]
+            person_grouped.columns = ["姓名", "點購餐點品項明細", "應付小計", "付款狀態"]
 
             line_order_text = f"【午餐訂單 - {order_out_date}】\n--------------------\n"
             line_order_text += "【餐點彙整清單】\n"
