@@ -97,6 +97,10 @@ def get_food_aac_icon(item_name, category=""):
     elif "蛋" in s or "小菜" in s or "豆干" in s: return "🥗"
     else: return "🍱"
 
+def is_dumpling_item(item_name):
+    s = str(item_name).strip()
+    return ("水餃" in s or "鍋貼" in s or "蒸餃" in s)
+
 st.markdown("""
 <style>
     html { scroll-behavior: smooth; }
@@ -128,6 +132,17 @@ st.markdown("""
         font-weight: 900 !important;
         color: #78350F !important;
         margin-bottom: 22px;
+    }
+
+    .date-status-bar {
+        background-color: #EFF6FF;
+        border: 2.5px solid #3B82F6;
+        border-radius: 16px;
+        padding: 14px 20px;
+        font-size: 24px;
+        font-weight: 900;
+        color: #1E40AF;
+        margin-bottom: 16px;
     }
 
     .screen-choice-tile button {
@@ -169,6 +184,31 @@ st.markdown("""
         background: #D1FAE5 !important;
         border-color: #047857 !important;
         transform: translateY(-3px);
+    }
+
+    .qty-select-tile button {
+        width: 100% !important;
+        min-height: 110px !important;
+        font-size: 32px !important;
+        font-weight: 900 !important;
+        border-radius: 20px !important;
+        border: 3.5px solid #0284C7 !important;
+        background: #F0F9FF !important;
+        color: #0369A1 !important;
+        margin-bottom: 14px !important;
+    }
+
+    .qty-btn button {
+        font-size: 40px !important; font-weight: 900 !important;
+        min-height: 75px !important; width: 100% !important;
+        border-radius: 18px !important; border: 3px solid #3B82F6 !important;
+        background-color: #EFF6FF !important; color: #1D4ED8 !important;
+    }
+    .qty-display {
+        font-size: 38px; font-weight: 900; color: #1E293B;
+        text-align: center; line-height: 75px;
+        background-color: #F8FAFC; border-radius: 16px;
+        border: 3px solid #CBD5E1;
     }
 
     div[data-testid="stButton"] button[kind="primary"] {
@@ -385,6 +425,8 @@ if "current_picking_item" not in st.session_state:
     st.session_state.current_picking_item = None
 if "picked_spec" not in st.session_state:
     st.session_state.picked_spec = "標準份量"
+if "dumpling_qty" not in st.session_state:
+    st.session_state.dumpling_qty = 10
 
 if "cart" not in st.session_state:
     st.session_state.cart = []
@@ -401,6 +443,7 @@ def reset_ordering():
     st.session_state.user_daily_limit = 0.0
     st.session_state.current_picking_item = None
     st.session_state.picked_spec = "標準份量"
+    st.session_state.dumpling_qty = 10
     st.session_state.cart = []
     st.session_state.last_order_total = 0.0
 
@@ -411,7 +454,6 @@ render_speech_player()
 
 st.title("🍱 中餐友善點餐系統")
 
-# 頂部主導航
 nav_col1, nav_col2, nav_col3 = st.columns(3)
 with nav_col1:
     is_active = (st.session_state.active_main_tab == "tab_order")
@@ -446,10 +488,20 @@ with nav_col3:
 st.write("---")
 
 # -------------------------------------------------------------
-# 分頁 1：畫面式逐項轉跳點餐
+# 分頁 1：畫面式逐項轉跳點餐（水餃/鍋貼算顆）
 # -------------------------------------------------------------
 if st.session_state.active_main_tab == "tab_order":
     chosen_date_str = str(st.session_state.target_order_date)
+
+    if st.session_state.order_step not in ["DATE", "FINISH"]:
+        d_bar_c1, d_bar_c2 = st.columns([4, 1])
+        with d_bar_c1:
+            st.markdown(f'<div class="date-status-bar">📅 目前預訂用餐日期：<b>{chosen_date_str}</b></div>', unsafe_allow_html=True)
+        with d_bar_c2:
+            if st.button("🔄 更換日期", use_container_width=True):
+                st.session_state.order_step = "DATE"
+                queue_speech("好的，重新挑選用餐日期！")
+                st.rerun()
 
     # 畫面 A：送單完成
     if st.session_state.order_step == "FINISH":
@@ -528,7 +580,7 @@ if st.session_state.active_main_tab == "tab_order":
     elif st.session_state.order_step == "USER":
         c_head1, c_head2 = st.columns([4, 1])
         with c_head1:
-            st.markdown(f'<div class="aac-step-banner">👤 第 2 步：請問你是哪一位好朋友？（預訂：{chosen_date_str}）</div>', unsafe_allow_html=True)
+            st.markdown(f'<div class="aac-step-banner">👤 第 2 步：請問你是哪一位好朋友？</div>', unsafe_allow_html=True)
         with c_head2:
             if st.button("⬅️ 重選日期", use_container_width=True):
                 st.session_state.order_step = "DATE"
@@ -700,6 +752,7 @@ if st.session_state.active_main_tab == "tab_order":
         affordable_items = []
         for _, item_row in filtered_menu.iterrows():
             item_base_price = item_row["parsed_price"]
+            # 若為水餃/鍋貼，只要單顆價格未超標即可點選
             if u_lim > 0 and item_base_price > remain_budget:
                 continue
             affordable_items.append(item_row)
@@ -729,8 +782,11 @@ if st.session_state.active_main_tab == "tab_order":
 
                 allow_extra = ("劉妹" in str(store_name)) or ("意麵" in i_name) or ("麵" in category)
                 has_spec = len(type_options) > 1
+                is_dumpling = is_dumpling_item(i_name)
 
-                btn_tile_label = f"{food_icon} {i_name}\n${fmt_price(base_p)} 元"
+                unit_str = "顆" if is_dumpling else "份"
+                btn_tile_label = f"{food_icon} {i_name}\n${fmt_price(base_p)} 元 / {unit_str}"
+
                 with pos_cols[idx % 2]:
                     st.markdown('<div class="screen-choice-tile">', unsafe_allow_html=True)
                     if st.button(btn_tile_label, key=safe_key("scr_food_tile", i_name, idx)):
@@ -739,10 +795,16 @@ if st.session_state.active_main_tab == "tab_order":
                             "price": base_p,
                             "options": type_options,
                             "icon": food_icon,
-                            "allow_extra": allow_extra
+                            "allow_extra": allow_extra,
+                            "is_dumpling": is_dumpling
                         }
                         
-                        if has_spec:
+                        # 若為水餃/鍋貼直接轉跳挑選顆數
+                        if is_dumpling:
+                            st.session_state.dumpling_qty = 10
+                            st.session_state.order_step = "DUMPLING_QTY"
+                            queue_speech(f"{i_name}，請問要吃幾顆呢？")
+                        elif has_spec:
                             st.session_state.order_step = "SPEC"
                             queue_speech(f"想吃{i_name}呀！請問想要哪一種麵或份量呢？")
                         elif allow_extra:
@@ -763,6 +825,90 @@ if st.session_state.active_main_tab == "tab_order":
                             queue_speech(f"哇！{i_name}聽起來好好吃，已經放進點餐籃囉！")
                         st.rerun()
                     st.markdown('</div>', unsafe_allow_html=True)
+
+    # 畫面 4-B：水餃/鍋貼顆數獨立選擇
+    elif st.session_state.order_step == "DUMPLING_QTY":
+        cur_item = st.session_state.current_picking_item
+        p_name = cur_item["name"]
+        p_base_p = cur_item["price"]
+        p_icon = cur_item["icon"]
+        u_lim = st.session_state.user_daily_limit
+
+        all_orders = st.session_state.orders_data
+        already_spent_today = 0.0
+        if not all_orders.empty and "訂購日期" in all_orders.columns and "員工姓名" in all_orders.columns:
+            d_mask = all_orders["訂購日期"].astype(str).str.replace("-", "/").str.contains(chosen_date_str.replace("-", "/"))
+            user_done = all_orders[d_mask & (all_orders["員工姓名"] == st.session_state.selected_user)]
+            if not user_done.empty:
+                already_spent_today = user_done["小計金額"].apply(parse_price).sum()
+
+        cart_sum = sum(x["subtotal"] for x in st.session_state.cart)
+        remain_budget = round(u_lim - already_spent_today - cart_sum, 2) if u_lim > 0 else 999999
+
+        c1, c2 = st.columns([4, 1])
+        with c1:
+            st.markdown(f'<div class="aac-step-banner">{p_icon} 【{p_name}】一顆 ${fmt_price(p_base_p)} 元，想吃幾顆？</div>', unsafe_allow_html=True)
+        with c2:
+            if st.button("⬅️ 重選餐點", use_container_width=True):
+                st.session_state.order_step = "FOOD"
+                queue_speech("重新選擇餐點！")
+                st.rerun()
+
+        st.markdown("#### 👉 常見顆數直接點：")
+        quick_cols = st.columns(6)
+        preset_nums = [5, 8, 10, 12, 15, 20]
+        for q_idx, num in enumerate(preset_nums):
+            with quick_cols[q_idx]:
+                st.markdown('<div class="qty-select-tile">', unsafe_allow_html=True)
+                if st.button(f"{num} 顆", key=f"dumpling_quick_{num}"):
+                    st.session_state.dumpling_qty = num
+                    queue_speech(f"{num}顆")
+                    st.rerun()
+                st.markdown('</div>', unsafe_allow_html=True)
+
+        st.write("")
+        st.markdown("#### 👉 或按加減自訂顆數：")
+        cq1, cq2, cq3 = st.columns([1, 2, 1])
+        with cq1:
+            st.markdown('<div class="qty-btn">', unsafe_allow_html=True)
+            if st.button("➖ 減 1 顆", key="btn_dump_minus"):
+                if st.session_state.dumpling_qty > 1:
+                    st.session_state.dumpling_qty -= 1
+                    queue_speech(f"{st.session_state.dumpling_qty}顆")
+                    st.rerun()
+            st.markdown('</div>', unsafe_allow_html=True)
+
+        with cq2:
+            st.markdown(f'<div class="qty-display">{st.session_state.dumpling_qty} 顆</div>', unsafe_allow_html=True)
+
+        with cq3:
+            st.markdown('<div class="qty-btn">', unsafe_allow_html=True)
+            if st.button("➕ 加 1 顆", key="btn_dump_plus"):
+                if st.session_state.dumpling_qty < 50:
+                    st.session_state.dumpling_qty += 1
+                    queue_speech(f"{st.session_state.dumpling_qty}顆")
+                    st.rerun()
+            st.markdown('</div>', unsafe_allow_html=True)
+
+        cur_qty = st.session_state.dumpling_qty
+        subtotal_d = round(p_base_p * cur_qty, 2)
+        can_buy = (u_lim == 0) or (subtotal_d <= remain_budget)
+
+        st.write("")
+        confirm_btn_text = f"🛒 確認加入：{cur_qty} 顆 ｜ 共 ${fmt_price(subtotal_d)} 元" if can_buy else f"❌ 超過可用預算囉（剩 ${fmt_price(remain_budget)} 元）"
+        if st.button(confirm_btn_text, type="primary", use_container_width=True, disabled=not can_buy):
+            item_data = {
+                "item": p_name,
+                "spec": f"{cur_qty}顆",
+                "extra": "不加麵",
+                "unit_price": p_base_p,
+                "qty": cur_qty,
+                "subtotal": subtotal_d
+            }
+            st.session_state.cart.append(item_data)
+            st.session_state.order_step = "CART_CONFIRM"
+            queue_speech(f"太棒了！{p_name}{cur_qty}顆，幫你放入點餐籃囉！")
+            st.rerun()
 
     # 畫面 5：挑選規格
     elif st.session_state.order_step == "SPEC":
@@ -922,7 +1068,8 @@ if st.session_state.active_main_tab == "tab_order":
         for c_idx, c_item in enumerate(st.session_state.cart):
             cc1, cc2 = st.columns([4, 1])
             with cc1:
-                st.write(f"▪ {c_item['item']}（{c_item['spec']} ｜ {c_item['extra']}）- ${fmt_price(c_item['subtotal'])} 元")
+                unit_label = "顆" if is_dumpling_item(c_item['item']) else "份"
+                st.write(f"▪ {c_item['item']}（{c_item['spec']} ｜ {c_item['extra']}） x {c_item['qty']} {unit_label} - ${fmt_price(c_item['subtotal'])} 元")
             with cc2:
                 if st.button("🗑️ 取消這道", key=f"scr_del_{c_idx}"):
                     st.session_state.cart.pop(c_idx)
@@ -1067,8 +1214,10 @@ elif st.session_state.active_main_tab == "tab_recon":
                 with r2:
                     st.write(f"👤 **{u_short}**")
                 with r3:
-                    q_info = f" x {row_data.get('數量', 1)}" if str(row_data.get('數量', 1)) not in ["", "1"] else ""
-                    st.write(f"{row_data.get('餐點品項', '')}{q_info} ｜ {row_data.get('麵類選擇', '')} ｜ {row_data.get('是否加麵', '')}")
+                    item_name_str = str(row_data.get('餐點品項', ''))
+                    unit_l = "顆" if is_dumpling_item(item_name_str) else "份"
+                    q_info = f" x {row_data.get('數量', 1)} {unit_l}" if str(row_data.get('數量', 1)) not in ["", "1"] else ""
+                    st.write(f"{item_name_str}{q_info} ｜ {row_data.get('麵類選擇', '')} ｜ {row_data.get('是否加麵', '')}")
                 with r4:
                     st.write(f"<b style='color:#DC2626;'>{row_data.get('小計金額', '')}</b>", unsafe_allow_html=True)
                 with r5:
@@ -1122,7 +1271,7 @@ elif st.session_state.active_main_tab == "tab_recon":
                 st.markdown('</div>', unsafe_allow_html=True)
 
 # -------------------------------------------------------------
-# 分頁 3：訂單彙整出單
+# 分頁 3：訂單彙整出單（水餃鍋貼自動以「顆」為統計單位）
 # -------------------------------------------------------------
 elif st.session_state.active_main_tab == "tab_report":
     st.subheader("🖨️ 中餐訂單出單與分發彙整表")
@@ -1155,7 +1304,6 @@ elif st.session_state.active_main_tab == "tab_report":
             out_day_orders["數量數值"] = out_day_orders["數量"].apply(lambda x: int(parse_price(x)) if parse_price(x) > 0 else 1)
 
             total_money = round(out_day_orders["金額數值"].sum(), 2)
-            total_portions = int(out_day_orders["數量數值"].sum())
             total_items = len(out_day_orders)
 
             unpaid_subset = out_day_orders[out_day_orders["付款狀態"] != "已付款"]
@@ -1172,7 +1320,7 @@ elif st.session_state.active_main_tab == "tab_report":
                 nd = str(r.get("麵類選擇", "")).strip()
                 ex = str(r.get("是否加麵", "")).strip()
                 spec_parts = []
-                if nd and nd not in ["-", "nan", "無", "標準配置", "標準", "標準份量"]:
+                if nd and nd not in ["-", "nan", "無", "標準配置", "標準", "標準份量"] and not is_dumpling_item(item):
                     spec_parts.append(nd)
                 if "要加麵" in ex:
                     spec_parts.append("加麵")
@@ -1181,12 +1329,21 @@ elif st.session_state.active_main_tab == "tab_report":
 
             out_day_orders["餐點規格彙整"] = out_day_orders.apply(make_spec_name, axis=1)
 
-            summary_grouped = out_day_orders.groupby("餐點規格彙整")["數量數值"].sum().reset_index()
-            summary_grouped.columns = ["餐點項目與規格", "總數量 (份)"]
-            summary_grouped = summary_grouped.sort_values(by="總數量 (份)", ascending=False)
+            # 依是否為水餃/鍋貼標示單位
+            summary_list = []
+            for item_name_spec, g_df in out_day_orders.groupby("餐點規格彙整"):
+                total_q = int(g_df["數量數值"].sum())
+                unit_label = "顆" if is_dumpling_item(item_name_spec) else "份"
+                summary_list.append({
+                    "餐點項目與規格": item_name_spec,
+                    "總數量": f"{total_q} {unit_label}",
+                    "純數字數量": total_q
+                })
+            
+            summary_grouped = pd.DataFrame(summary_list).sort_values(by="純數字數量", ascending=False)[["餐點項目與規格", "總數量"]]
 
             person_grouped = out_day_orders.groupby("員工姓名").agg({
-                "餐點規格彙整": lambda x: "、".join(f"{item} x{qty}" if qty > 1 else item for item, qty in zip(x, out_day_orders.loc[x.index, "數量數值"])),
+                "餐點規格彙整": lambda x: "、".join(f"{item} x{qty}{'顆' if is_dumpling_item(item) else '份'}" for item, qty in zip(x, out_day_orders.loc[x.index, "數量數值"])),
                 "金額數值": "sum",
                 "付款狀態": lambda s: "已付款" if all(x == "已付款" for x in s) else "未付款"
             }).reset_index()
@@ -1195,16 +1352,16 @@ elif st.session_state.active_main_tab == "tab_report":
             line_order_text = f"【午餐訂單 - {order_out_date}】\n--------------------\n"
             line_order_text += "【餐點彙整清單】\n"
             for _, s_row in summary_grouped.iterrows():
-                line_order_text += f"▪ {s_row['餐點項目與規格']}：{s_row['總數量 (份)']} 份\n"
+                line_order_text += f"▪ {s_row['餐點項目與規格']}：{s_row['總數量']}\n"
             line_order_text += "--------------------\n"
-            line_order_text += f"總計：{total_portions} 份\n總金額：${fmt_price(total_money)} 元\n"
+            line_order_text += f"總金額：${fmt_price(total_money)} 元\n"
 
             st.markdown(f"""
             <div class="receipt-box" id="print-area">
                 <div class="receipt-header">
                     <h2 style="margin:0; font-size:32px; color:#1E293B;">🍱 中餐訂單彙整出單表</h2>
                     <div style="font-size:22px; color:#475569; margin-top:8px;">
-                        📅 訂購日期：<b>{order_out_date}</b> ｜ 總份數：<b>{total_portions} 份</b> ｜ 總金額：<b style="color:#DC2626; font-size:26px;">${fmt_price(total_money)} 元</b>
+                        📅 訂購日期：<b>{order_out_date}</b> ｜ 總品項：<b>{total_items} 筆</b> ｜ 總金額：<b style="color:#DC2626; font-size:26px;">${fmt_price(total_money)} 元</b>
                     </div>
                 </div>
             </div>
