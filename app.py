@@ -76,6 +76,7 @@ def get_category_icon(cat_name):
     elif "便當" in cat_str: return f"🍱 {cat_str}"
     elif "水餃" in cat_str: return f"🥟 {cat_str}"
     elif "鍋貼" in cat_str: return f"🥟🔥 {cat_str}"
+    elif "蒸餃" in cat_str: return f"🥟♨️ {cat_str}"
     elif "湯" in cat_str: return f"🥣 {cat_str}"
     elif "飯" in cat_str: return f"🍚 {cat_str}"
     elif "麵" in cat_str or "意麵" in cat_str or "冬粉" in cat_str: return f"🍜 {cat_str}"
@@ -85,8 +86,9 @@ def get_category_icon(cat_name):
 
 def get_food_aac_icon(item_name, category=""):
     s = f"{item_name} {category}"
-    if "鍋貼" in s: return "🥟🔥"
-    elif "水餃" in s or "蒸餃" in s: return "🥟"
+    if "蒸餃" in s: return "🥟♨️"
+    elif "鍋貼" in s: return "🥟🔥"
+    elif "水餃" in s: return "🥟"
     elif "便當" in s or "飯包" in s or "招牌飯" in s: return "🍱"
     elif "滷肉飯" in s or "肉燥飯" in s or "排骨" in s or "雞腿" in s: return "🍖🍚"
     elif "炒飯" in s or "燴飯" in s: return "🍛"
@@ -97,9 +99,12 @@ def get_food_aac_icon(item_name, category=""):
     elif "蛋" in s or "小菜" in s or "豆干" in s: return "🥗"
     else: return "🍱"
 
+# 判斷是否為按「顆」計算的水餃與鍋貼（排除蒸餃，蒸餃為份）
 def is_dumpling_item(item_name):
     s = str(item_name).strip()
-    return ("水餃" in s or "鍋貼" in s or "蒸餃" in s)
+    if "蒸餃" in s:
+        return False
+    return ("水餃" in s or "鍋貼" in s)
 
 st.markdown("""
 <style>
@@ -364,6 +369,9 @@ def load_menu():
         df.columns = [str(c).strip() for c in df.columns]
         if "種類選擇" in df.columns and "麵類選擇" not in df.columns:
             df.rename(columns={"種類選擇": "麵類選擇"}, inplace=True)
+        # 店家名稱自動校正為「元春餃子館」
+        if "店家名稱" in df.columns:
+            df["店家名稱"] = df["店家名稱"].astype(str).str.replace("元餃子館", "元春餃子館")
         return df.dropna(subset=["餐點名稱"]) if "餐點名稱" in df.columns else df
     except:
         return pd.DataFrame()
@@ -488,7 +496,7 @@ with nav_col3:
 st.write("---")
 
 # -------------------------------------------------------------
-# 分頁 1：畫面式逐項轉跳點餐（水餃/鍋貼算顆）
+# 分頁 1：畫面式逐項轉跳點餐（元春餃子館 / 蒸餃以份計算）
 # -------------------------------------------------------------
 if st.session_state.active_main_tab == "tab_order":
     chosen_date_str = str(st.session_state.target_order_date)
@@ -660,7 +668,7 @@ if st.session_state.active_main_tab == "tab_order":
                 queue_speech("想要再多吃一點嗎？請挑選店家！")
                 st.rerun()
 
-    # 畫面 3：選擇店家
+    # 畫面 3：選擇店家（支援「元春餃子館」）
     elif st.session_state.order_step == "STORE":
         u_name = st.session_state.selected_user
         u_first_name = get_first_name(u_name)
@@ -752,7 +760,6 @@ if st.session_state.active_main_tab == "tab_order":
         affordable_items = []
         for _, item_row in filtered_menu.iterrows():
             item_base_price = item_row["parsed_price"]
-            # 若為水餃/鍋貼，只要單顆價格未超標即可點選
             if u_lim > 0 and item_base_price > remain_budget:
                 continue
             affordable_items.append(item_row)
@@ -782,8 +789,9 @@ if st.session_state.active_main_tab == "tab_order":
 
                 allow_extra = ("劉妹" in str(store_name)) or ("意麵" in i_name) or ("麵" in category)
                 has_spec = len(type_options) > 1
+                
+                # 水餃/鍋貼算「顆」，蒸餃算「份」
                 is_dumpling = is_dumpling_item(i_name)
-
                 unit_str = "顆" if is_dumpling else "份"
                 btn_tile_label = f"{food_icon} {i_name}\n${fmt_price(base_p)} 元 / {unit_str}"
 
@@ -799,7 +807,7 @@ if st.session_state.active_main_tab == "tab_order":
                             "is_dumpling": is_dumpling
                         }
                         
-                        # 若為水餃/鍋貼直接轉跳挑選顆數
+                        # 水餃/鍋貼跳轉挑選顆數；蒸餃與其他直接走一般流程
                         if is_dumpling:
                             st.session_state.dumpling_qty = 10
                             st.session_state.order_step = "DUMPLING_QTY"
@@ -812,6 +820,7 @@ if st.session_state.active_main_tab == "tab_order":
                             st.session_state.order_step = "EXTRA"
                             queue_speech(f"{i_name}，請問份量要不要加麵吃得更飽呢？")
                         else:
+                            # 蒸餃或單一規格餐點直接加入購物籃（以份為單位）
                             item_data = {
                                 "item": i_name,
                                 "spec": type_options[0],
@@ -827,561 +836,4 @@ if st.session_state.active_main_tab == "tab_order":
                     st.markdown('</div>', unsafe_allow_html=True)
 
     # 畫面 4-B：水餃/鍋貼顆數獨立選擇
-    elif st.session_state.order_step == "DUMPLING_QTY":
-        cur_item = st.session_state.current_picking_item
-        p_name = cur_item["name"]
-        p_base_p = cur_item["price"]
-        p_icon = cur_item["icon"]
-        u_lim = st.session_state.user_daily_limit
-
-        all_orders = st.session_state.orders_data
-        already_spent_today = 0.0
-        if not all_orders.empty and "訂購日期" in all_orders.columns and "員工姓名" in all_orders.columns:
-            d_mask = all_orders["訂購日期"].astype(str).str.replace("-", "/").str.contains(chosen_date_str.replace("-", "/"))
-            user_done = all_orders[d_mask & (all_orders["員工姓名"] == st.session_state.selected_user)]
-            if not user_done.empty:
-                already_spent_today = user_done["小計金額"].apply(parse_price).sum()
-
-        cart_sum = sum(x["subtotal"] for x in st.session_state.cart)
-        remain_budget = round(u_lim - already_spent_today - cart_sum, 2) if u_lim > 0 else 999999
-
-        c1, c2 = st.columns([4, 1])
-        with c1:
-            st.markdown(f'<div class="aac-step-banner">{p_icon} 【{p_name}】一顆 ${fmt_price(p_base_p)} 元，想吃幾顆？</div>', unsafe_allow_html=True)
-        with c2:
-            if st.button("⬅️ 重選餐點", use_container_width=True):
-                st.session_state.order_step = "FOOD"
-                queue_speech("重新選擇餐點！")
-                st.rerun()
-
-        st.markdown("#### 👉 常見顆數直接點：")
-        quick_cols = st.columns(6)
-        preset_nums = [5, 8, 10, 12, 15, 20]
-        for q_idx, num in enumerate(preset_nums):
-            with quick_cols[q_idx]:
-                st.markdown('<div class="qty-select-tile">', unsafe_allow_html=True)
-                if st.button(f"{num} 顆", key=f"dumpling_quick_{num}"):
-                    st.session_state.dumpling_qty = num
-                    queue_speech(f"{num}顆")
-                    st.rerun()
-                st.markdown('</div>', unsafe_allow_html=True)
-
-        st.write("")
-        st.markdown("#### 👉 或按加減自訂顆數：")
-        cq1, cq2, cq3 = st.columns([1, 2, 1])
-        with cq1:
-            st.markdown('<div class="qty-btn">', unsafe_allow_html=True)
-            if st.button("➖ 減 1 顆", key="btn_dump_minus"):
-                if st.session_state.dumpling_qty > 1:
-                    st.session_state.dumpling_qty -= 1
-                    queue_speech(f"{st.session_state.dumpling_qty}顆")
-                    st.rerun()
-            st.markdown('</div>', unsafe_allow_html=True)
-
-        with cq2:
-            st.markdown(f'<div class="qty-display">{st.session_state.dumpling_qty} 顆</div>', unsafe_allow_html=True)
-
-        with cq3:
-            st.markdown('<div class="qty-btn">', unsafe_allow_html=True)
-            if st.button("➕ 加 1 顆", key="btn_dump_plus"):
-                if st.session_state.dumpling_qty < 50:
-                    st.session_state.dumpling_qty += 1
-                    queue_speech(f"{st.session_state.dumpling_qty}顆")
-                    st.rerun()
-            st.markdown('</div>', unsafe_allow_html=True)
-
-        cur_qty = st.session_state.dumpling_qty
-        subtotal_d = round(p_base_p * cur_qty, 2)
-        can_buy = (u_lim == 0) or (subtotal_d <= remain_budget)
-
-        st.write("")
-        confirm_btn_text = f"🛒 確認加入：{cur_qty} 顆 ｜ 共 ${fmt_price(subtotal_d)} 元" if can_buy else f"❌ 超過可用預算囉（剩 ${fmt_price(remain_budget)} 元）"
-        if st.button(confirm_btn_text, type="primary", use_container_width=True, disabled=not can_buy):
-            item_data = {
-                "item": p_name,
-                "spec": f"{cur_qty}顆",
-                "extra": "不加麵",
-                "unit_price": p_base_p,
-                "qty": cur_qty,
-                "subtotal": subtotal_d
-            }
-            st.session_state.cart.append(item_data)
-            st.session_state.order_step = "CART_CONFIRM"
-            queue_speech(f"太棒了！{p_name}{cur_qty}顆，幫你放入點餐籃囉！")
-            st.rerun()
-
-    # 畫面 5：挑選規格
-    elif st.session_state.order_step == "SPEC":
-        cur_item = st.session_state.current_picking_item
-        p_name = cur_item["name"]
-        p_base_p = cur_item["price"]
-        p_options = cur_item["options"]
-        p_icon = cur_item["icon"]
-        allow_extra = cur_item["allow_extra"]
-
-        c1, c2 = st.columns([4, 1])
-        with c1:
-            st.markdown(f'<div class="aac-step-banner">{p_icon} 請點選【{p_name}】的種類規格：</div>', unsafe_allow_html=True)
-        with c2:
-            if st.button("⬅️ 重選餐點", use_container_width=True):
-                st.session_state.order_step = "FOOD"
-                queue_speech("好的，重新挑選餐點！")
-                st.rerun()
-
-        cols_spec = st.columns(min(len(p_options), 3))
-        for o_idx, opt_txt in enumerate(p_options):
-            opt_extra_p = parse_extra_price(opt_txt)
-            final_p = p_base_p + opt_extra_p
-            with cols_spec[o_idx % min(len(p_options), 3)]:
-                st.markdown('<div class="spec-choice-tile">', unsafe_allow_html=True)
-                if st.button(f"👉 {opt_txt}\n(${fmt_price(final_p)}元)", key=f"scr_spec_btn_{o_idx}"):
-                    st.session_state.picked_spec = opt_txt
-                    
-                    if allow_extra:
-                        st.session_state.order_step = "EXTRA"
-                        queue_speech(f"選了{opt_txt}！請問要不要加麵吃更飽？")
-                    else:
-                        item_data = {
-                            "item": p_name,
-                            "spec": opt_txt,
-                            "extra": "不加麵",
-                            "unit_price": final_p,
-                            "qty": 1,
-                            "subtotal": final_p
-                        }
-                        st.session_state.cart.append(item_data)
-                        st.session_state.order_step = "CART_CONFIRM"
-                        queue_speech(f"太棒了！{p_name}{opt_txt}，幫你放進點餐籃囉！")
-                    st.rerun()
-                st.markdown('</div>', unsafe_allow_html=True)
-
-    # 畫面 6：挑選加麵
-    elif st.session_state.order_step == "EXTRA":
-        cur_item = st.session_state.current_picking_item
-        p_name = cur_item["name"]
-        p_base_p = cur_item["price"]
-        chosen_spec = st.session_state.picked_spec
-        spec_extra_p = parse_extra_price(chosen_spec)
-
-        c1, c2 = st.columns([4, 1])
-        with c1:
-            st.markdown(f'<div class="aac-step-banner">🍜 【{p_name}（{chosen_spec}）】要不要加麵？</div>', unsafe_allow_html=True)
-        with c2:
-            if st.button("⬅️ 重選規格", use_container_width=True):
-                st.session_state.order_step = "SPEC" if len(cur_item["options"]) > 1 else "FOOD"
-                queue_speech("重選規格！")
-                st.rerun()
-
-        cols_ex = st.columns(2)
-        with cols_ex[0]:
-            st.markdown('<div class="spec-choice-tile">', unsafe_allow_html=True)
-            p_normal = p_base_p + spec_extra_p
-            if st.button(f"🍜 不加麵\n(${fmt_price(p_normal)}元)", key="scr_ex_no"):
-                item_data = {
-                    "item": p_name,
-                    "spec": chosen_spec,
-                    "extra": "不加麵",
-                    "unit_price": p_normal,
-                    "qty": 1,
-                    "subtotal": p_normal
-                }
-                st.session_state.cart.append(item_data)
-                st.session_state.order_step = "CART_CONFIRM"
-                queue_speech(f"好的，正常份量不加麵，已經放入點餐籃囉！")
-                st.rerun()
-            st.markdown('</div>', unsafe_allow_html=True)
-
-        with cols_ex[1]:
-            st.markdown('<div class="spec-choice-tile">', unsafe_allow_html=True)
-            p_plus = p_base_p + spec_extra_p + 15
-            if st.button(f"➕ 要加麵 (+15元)\n(${fmt_price(p_plus)}元)", key="scr_ex_yes"):
-                item_data = {
-                    "item": p_name,
-                    "spec": chosen_spec,
-                    "extra": "要加麵 (+15元)",
-                    "unit_price": p_plus,
-                    "qty": 1,
-                    "subtotal": p_plus
-                }
-                st.session_state.cart.append(item_data)
-                st.session_state.order_step = "CART_CONFIRM"
-                queue_speech(f"好的，大份量加麵，已經放入點餐籃囉！")
-                st.rerun()
-            st.markdown('</div>', unsafe_allow_html=True)
-
-    # 畫面 7：點餐確認
-    elif st.session_state.order_step == "CART_CONFIRM":
-        u_name = st.session_state.selected_user
-        cart_sum = sum(x["subtotal"] for x in st.session_state.cart)
-        last_item = st.session_state.cart[-1]
-
-        st.markdown(f"""
-        <div class="added-feedback-card">
-            <div style="font-size:40px; font-weight:900; color:#1E40AF; margin-bottom:12px;">
-                🎉 已經放進點餐籃囉！
-            </div>
-            <div style="font-size:32px; font-weight:900; color:#1F2937; margin-bottom:10px;">
-                🍲 【{last_item['item']}】（{last_item['spec']} ｜ {last_item['extra']}）
-            </div>
-            <div style="font-size:30px; color:#DC2626; font-weight:900; margin-bottom:16px;">
-                目前點餐籃總共有 {len(st.session_state.cart)} 樣食物 ｜ 總共：${fmt_price(cart_sum)} 元
-            </div>
-        </div>
-        """, unsafe_allow_html=True)
-
-        c_opt1, c_opt2 = st.columns(2)
-        with c_opt1:
-            if st.button("➕ 我還要再點別的", use_container_width=True):
-                st.session_state.order_step = "FOOD"
-                queue_speech("肚子還會餓嗎？我們繼續挑別的餐點！")
-                st.rerun()
-
-        with c_opt2:
-            if st.button(f"✅ 我點好了，送出訂單（共 ${fmt_price(cart_sum)} 元）", type="primary", use_container_width=True):
-                new_rows = []
-                current_len = len(st.session_state.orders_data)
-                for i, it in enumerate(st.session_state.cart):
-                    new_rows.append({
-                        "訂單編號": f"ORD-{current_len + i + 1:03d}",
-                        "訂購日期": chosen_date_str,
-                        "員工編號": "",
-                        "員工姓名": u_name,
-                        "所屬部門": "",
-                        "餐點品項": it["item"],
-                        "麵類選擇": it["spec"],
-                        "是否加麵": it.get("extra", "不加麵"),
-                        "單價": f"${fmt_price(it['unit_price'])}",
-                        "數量": it["qty"],
-                        "小計金額": f"${fmt_price(it['subtotal'])}",
-                        "付款狀態": "未付款"
-                    })
-                st.session_state.orders_data = pd.concat([st.session_state.orders_data, pd.DataFrame(new_rows)], ignore_index=True)
-                st.session_state.last_order_total = cart_sum
-                with st.spinner("正在送出訂單..."):
-                    sync_to_google_sheet({"action": "append", "rows": new_rows})
-                queue_speech(f"太棒了！點好囉，請記得準備{int(cart_sum)}元，拿給收錢的人員喔！")
-                st.session_state.order_step = "FINISH"
-                st.rerun()
-
-        st.write("---")
-        st.markdown("#### 🛒 目前點餐籃明細：")
-        for c_idx, c_item in enumerate(st.session_state.cart):
-            cc1, cc2 = st.columns([4, 1])
-            with cc1:
-                unit_label = "顆" if is_dumpling_item(c_item['item']) else "份"
-                st.write(f"▪ {c_item['item']}（{c_item['spec']} ｜ {c_item['extra']}） x {c_item['qty']} {unit_label} - ${fmt_price(c_item['subtotal'])} 元")
-            with cc2:
-                if st.button("🗑️ 取消這道", key=f"scr_del_{c_idx}"):
-                    st.session_state.cart.pop(c_idx)
-                    if not st.session_state.cart:
-                        st.session_state.order_step = "FOOD"
-                    queue_speech("這道菜已經拿出來囉！")
-                    st.rerun()
-
-# -------------------------------------------------------------
-# 分頁 2：現場收款對帳
-# -------------------------------------------------------------
-elif st.session_state.active_main_tab == "tab_recon":
-    st.subheader("💵 現場收款、找零與訂單維護")
-    q_date = st.date_input("選擇收款日期", value=st.session_state.target_order_date, key="q_date_recon")
-    if st.button("🔄 重新載入最新資料", key="btn_reload_recon"):
-        st.session_state.orders_data = load_orders_from_sheet()
-        queue_speech("已重新載入最新收款資料！")
-        st.rerun()
-
-    all_orders = st.session_state.orders_data.copy()
-    q_str = str(q_date).strip()
-    q_str_slash = q_str.replace("-", "/")
-    
-    d_series = all_orders["訂購日期"].astype(str).str.strip()
-    date_mask = (d_series == q_str) | (d_series == q_str_slash) | (d_series.str.replace("-", "/") == q_str_slash)
-    day_orders = all_orders[date_mask].copy()
-
-    if day_orders.empty:
-        st.info(f"【{q_date}】尚無任何點餐紀錄。")
-    else:
-        day_orders["金額數值"] = day_orders["小計金額"].apply(parse_price)
-        total_money = round(day_orders["金額數值"].sum(), 2)
-        paid_orders = day_orders[day_orders["付款狀態"] == "已付款"]
-        paid_money = round(paid_orders["金額數值"].sum(), 2)
-        unpaid_money = round(total_money - paid_money, 2)
-        unpaid_count = len(day_orders) - len(paid_orders)
-
-        m1, m2, m3 = st.columns(3)
-        m1.metric("本日訂單總額", f"${fmt_price(total_money)} 元")
-        m2.metric("已收總額", f"${fmt_price(paid_money)} 元", f"{len(paid_orders)} 筆")
-        m3.metric("待收餘額 (未收)", f"${fmt_price(unpaid_money)} 元", f"{unpaid_count} 筆", delta_color="inverse")
-
-        st.write("---")
-
-        unpaid = day_orders[day_orders["付款狀態"] != "已付款"]
-        if unpaid.empty:
-            st.success("🎉 本日全部訂單已收款完畢！可前往【🖨️ 訂單彙整出單】分頁出單。")
-        else:
-            user_options = unpaid["員工姓名"].dropna().unique().tolist()
-            user_display_map = {u: f"{get_first_name(u)} ({u})" for u in user_options}
-            calc_col1, calc_col2 = st.columns([1, 1])
-
-            with calc_col1:
-                target_user = st.selectbox("換下一位收錢", options=user_options, format_func=lambda x: user_display_map.get(x, x))
-                target_first_name = get_first_name(target_user)
-                user_unpaid_items = unpaid[unpaid["員工姓名"] == target_user]
-                target_due = round(user_unpaid_items["金額數值"].sum(), 2)
-
-                st.markdown(f"""
-                <div style="background-color: #FEF2F2; border: 2px solid #F87171; border-radius: 14px; padding: 16px; margin-top: 10px;">
-                    👤 收款對象：<b>{target_first_name}</b><br>
-                    💰 應收金額：<b style="color: #DC2626; font-size: 34px;">${fmt_price(target_due)}</b> 元
-                </div>
-                """, unsafe_allow_html=True)
-
-            with calc_col2:
-                st.write(f"點選【{target_first_name}】交給收錢人員的面額：")
-                q_col1, q_col2, q_col3 = st.columns(3)
-                with q_col1:
-                    if st.button("剛好", key="pay_exact"):
-                        st.session_state.received_cash = float(target_due)
-                        queue_speech(f"收了剛好的金額，{int(target_due)}元！")
-                with q_col2:
-                    if st.button("💵 拿 100", key="pay_100"):
-                        st.session_state.received_cash = 100.0
-                        queue_speech("收到一百元鈔票！")
-                with q_col3:
-                    if st.button("💵 拿 500", key="pay_500"):
-                        st.session_state.received_cash = 500.0
-                        queue_speech("收到五百元大鈔！")
-
-                default_val = st.session_state.get("received_cash", float(target_due))
-                paid_input = st.number_input("或自訂實收金額 (元)", min_value=0.0, value=float(default_val), step=1.0)
-
-                change = round(paid_input - target_due, 2)
-                if change >= 0:
-                    st.markdown(f"""
-                    <div style="background-color: #ECFDF5; border: 2px solid #34D399; border-radius: 14px; padding: 16px; margin-top: 10px;">
-                        🪙 收錢人員應找零錢：<b style="color: #059669; font-size: 34px;">${fmt_price(change)}</b> 元
-                    </div>
-                    """, unsafe_allow_html=True)
-
-                    rem_c = int(change)
-                    c100, rem_c = rem_c // 100, rem_c % 100
-                    c50, rem_c = rem_c // 50, rem_c % 50
-                    c10, rem_c = rem_c // 10, rem_c % 10
-                    c5, c1 = rem_c // 5, rem_c % 5
-
-                    if change > 0:
-                        st.markdown(f"### 👉 請收錢人員照著畫面「看到幾個就拿幾個」找給【{target_first_name}】：")
-                        board_html = "<div class='money-visual-board'>"
-                        if c100 > 0: board_html += f"<div class='money-group-row'>{''.join([SVG_100 for _ in range(c100)])}</div>"
-                        if c50 > 0: board_html += f"<div class='money-group-row'>{''.join([SVG_50 for _ in range(c50)])}</div>"
-                        if c10 > 0: board_html += f"<div class='money-group-row'>{''.join([SVG_10 for _ in range(c10)])}</div>"
-                        if c5 > 0: board_html += f"<div class='money-group-row'>{''.join([SVG_5 for _ in range(c5)])}</div>"
-                        if c1 > 0: board_html += f"<div class='money-group-row'>{''.join([SVG_1 for _ in range(c1)])}</div>"
-                        board_html += "</div>"
-                        st.markdown(board_html, unsafe_allow_html=True)
-                    else:
-                        st.info("👌 剛好收齊，不需要找錢！")
-
-                    st.write("")
-                    if st.button(f"✅ 確認收款完畢（將 {target_first_name} 設為已付款）", type="primary", use_container_width=True):
-                        target_indices = st.session_state.orders_data[st.session_state.orders_data["員工姓名"] == target_user].index
-                        st.session_state.orders_data.loc[target_indices, "付款狀態"] = "已付款"
-                        with st.spinner("同步雲端狀態中..."):
-                            sync_to_google_sheet({
-                                "action": "update_status",
-                                "user": target_user,
-                                "status": "已付款"
-                            })
-                        queue_speech(f"{target_first_name}，付款完成囉！謝謝你！")
-                        st.success(f"已完成 {target_first_name} 收款並同步至雲端！")
-                        time.sleep(0.5)
-                        st.rerun()
-                else:
-                    st.error(f"⚠️ 還不夠喔！{target_first_name}還差 ${fmt_price(abs(change))} 元")
-
-        st.write("---")
-        st.markdown("#### 📋 訂單流水清單：")
-        for row_idx, row_data in day_orders.iterrows():
-            ord_id = row_data.get("訂單編號", "")
-            u_full = str(row_data.get('員工姓名', ''))
-            u_short = get_first_name(u_full)
-
-            with st.container():
-                st.markdown('<div class="order-row-card">', unsafe_allow_html=True)
-                r1, r2, r3, r4, r5, r6 = st.columns([1.5, 2, 3.5, 1.5, 2, 1.5])
-                with r1:
-                    st.write(f"**{ord_id}**")
-                    st.caption(f"📅 {row_data.get('訂購日期', '')}")
-                with r2:
-                    st.write(f"👤 **{u_short}**")
-                with r3:
-                    item_name_str = str(row_data.get('餐點品項', ''))
-                    unit_l = "顆" if is_dumpling_item(item_name_str) else "份"
-                    q_info = f" x {row_data.get('數量', 1)} {unit_l}" if str(row_data.get('數量', 1)) not in ["", "1"] else ""
-                    st.write(f"{item_name_str}{q_info} ｜ {row_data.get('麵類選擇', '')} ｜ {row_data.get('是否加麵', '')}")
-                with r4:
-                    st.write(f"<b style='color:#DC2626;'>{row_data.get('小計金額', '')}</b>", unsafe_allow_html=True)
-                with r5:
-                    cur_status = row_data.get("付款狀態", "未付款")
-                    if cur_status == "已付款":
-                        if st.button("🟢 已付 (改未付)", key=f"recon_status_{row_idx}_{ord_id}"):
-                            st.session_state.orders_data.loc[row_idx, "付款狀態"] = "未付款"
-                            with st.spinner("更新狀態中..."):
-                                sync_to_google_sheet({
-                                    "action": "update_status",
-                                    "order_id": str(ord_id),
-                                    "user": u_full,
-                                    "status": "未付款"
-                                })
-                            queue_speech(f"{u_short}改為未付款狀態")
-                            st.rerun()
-                    else:
-                        if st.button("🔴 未付 (改已付)", key=f"recon_status_{row_idx}_{ord_id}"):
-                            st.session_state.orders_data.loc[row_idx, "付款狀態"] = "已付款"
-                            with st.spinner("更新狀態中..."):
-                                sync_to_google_sheet({
-                                    "action": "update_status",
-                                    "order_id": str(ord_id),
-                                    "user": u_full,
-                                    "status": "已付款"
-                                })
-                            queue_speech(f"{u_short}改為已付款狀態")
-                            st.rerun()
-                with r6:
-                    if st.button("🗑️ 刪除", key=f"recon_del_{row_idx}_{ord_id}", help="刪除這筆訂單"):
-                        target_ord = str(ord_id)
-                        target_u = u_full
-                        target_d = str(row_data.get("訂購日期", ""))
-                        target_it = str(row_data.get("餐點品項", ""))
-                        
-                        st.session_state.orders_data.drop(row_idx, inplace=True)
-                        st.session_state.orders_data.reset_index(drop=True, inplace=True)
-                        
-                        with st.spinner(f"正在從雲端刪除..."):
-                            sync_to_google_sheet({
-                                "action": "delete_order",
-                                "order_id": target_ord,
-                                "user": target_u,
-                                "date": target_d,
-                                "item": target_it
-                            })
-                        queue_speech("這筆訂單已經刪除囉！")
-                        st.success("訂單已成功刪除！")
-                        time.sleep(0.4)
-                        st.rerun()
-                st.markdown('</div>', unsafe_allow_html=True)
-
-# -------------------------------------------------------------
-# 分頁 3：訂單彙整出單（水餃鍋貼自動以「顆」為統計單位）
-# -------------------------------------------------------------
-elif st.session_state.active_main_tab == "tab_report":
-    st.subheader("🖨️ 中餐訂單出單與分發彙整表")
-    
-    col_od1, col_od2 = st.columns([2, 1])
-    with col_od1:
-        order_out_date = st.date_input("選擇欲出單的日期", value=st.session_state.target_order_date, key="out_order_date_input")
-    with col_od2:
-        st.write("")
-        if st.button("🔄 重新整理訂單數據", type="primary", key="btn_refresh_out"):
-            st.session_state.orders_data = load_orders_from_sheet()
-            queue_speech("出單數據已經整理好了！")
-            st.rerun()
-
-    all_orders = st.session_state.orders_data.copy()
-    q_str_dash = str(order_out_date).strip()
-    q_str_slash = q_str_dash.replace("-", "/")
-
-    if all_orders.empty:
-        st.info("目前尚無任何訂單資料。")
-    else:
-        d_series = all_orders["訂購日期"].astype(str).str.strip()
-        date_mask = (d_series == q_str_dash) | (d_series == q_str_slash) | (d_series.str.replace("-", "/") == q_str_slash)
-        out_day_orders = all_orders[date_mask].copy()
-
-        if out_day_orders.empty:
-            st.warning(f"⚠️ 在【{order_out_date}】查無點單紀錄，請先確認是否已送出餐點。")
-        else:
-            out_day_orders["金額數值"] = out_day_orders["小計金額"].apply(parse_price)
-            out_day_orders["數量數值"] = out_day_orders["數量"].apply(lambda x: int(parse_price(x)) if parse_price(x) > 0 else 1)
-
-            total_money = round(out_day_orders["金額數值"].sum(), 2)
-            total_items = len(out_day_orders)
-
-            unpaid_subset = out_day_orders[out_day_orders["付款狀態"] != "已付款"]
-            unpaid_cnt = len(unpaid_subset)
-            unpaid_sum = round(unpaid_subset["金額數值"].sum(), 2)
-
-            if unpaid_cnt == 0:
-                st.success(f"🎉【{order_out_date}】全體好朋友皆已完成付款！可直接放心出單給店家。")
-            else:
-                st.warning(f"⚠️ 提醒：尚有 {unpaid_cnt} 筆訂單尚未付款（待收 ${fmt_price(unpaid_sum)} 元），請先至【💵 現場收款對帳】交給收錢人員完成收款！")
-
-            def make_spec_name(r):
-                item = str(r.get("餐點品項", "")).strip()
-                nd = str(r.get("麵類選擇", "")).strip()
-                ex = str(r.get("是否加麵", "")).strip()
-                spec_parts = []
-                if nd and nd not in ["-", "nan", "無", "標準配置", "標準", "標準份量"] and not is_dumpling_item(item):
-                    spec_parts.append(nd)
-                if "要加麵" in ex:
-                    spec_parts.append("加麵")
-                spec_str = f" ({' / '.join(spec_parts)})" if spec_parts else ""
-                return f"{item}{spec_str}"
-
-            out_day_orders["餐點規格彙整"] = out_day_orders.apply(make_spec_name, axis=1)
-
-            # 依是否為水餃/鍋貼標示單位
-            summary_list = []
-            for item_name_spec, g_df in out_day_orders.groupby("餐點規格彙整"):
-                total_q = int(g_df["數量數值"].sum())
-                unit_label = "顆" if is_dumpling_item(item_name_spec) else "份"
-                summary_list.append({
-                    "餐點項目與規格": item_name_spec,
-                    "總數量": f"{total_q} {unit_label}",
-                    "純數字數量": total_q
-                })
-            
-            summary_grouped = pd.DataFrame(summary_list).sort_values(by="純數字數量", ascending=False)[["餐點項目與規格", "總數量"]]
-
-            person_grouped = out_day_orders.groupby("員工姓名").agg({
-                "餐點規格彙整": lambda x: "、".join(f"{item} x{qty}{'顆' if is_dumpling_item(item) else '份'}" for item, qty in zip(x, out_day_orders.loc[x.index, "數量數值"])),
-                "金額數值": "sum",
-                "付款狀態": lambda s: "已付款" if all(x == "已付款" for x in s) else "未付款"
-            }).reset_index()
-            person_grouped.columns = ["姓名", "點購餐點品項明細", "應付小計", "付款狀態"]
-
-            line_order_text = f"【午餐訂單 - {order_out_date}】\n--------------------\n"
-            line_order_text += "【餐點彙整清單】\n"
-            for _, s_row in summary_grouped.iterrows():
-                line_order_text += f"▪ {s_row['餐點項目與規格']}：{s_row['總數量']}\n"
-            line_order_text += "--------------------\n"
-            line_order_text += f"總金額：${fmt_price(total_money)} 元\n"
-
-            st.markdown(f"""
-            <div class="receipt-box" id="print-area">
-                <div class="receipt-header">
-                    <h2 style="margin:0; font-size:32px; color:#1E293B;">🍱 中餐訂單彙整出單表</h2>
-                    <div style="font-size:22px; color:#475569; margin-top:8px;">
-                        📅 訂購日期：<b>{order_out_date}</b> ｜ 總品項：<b>{total_items} 筆</b> ｜ 總金額：<b style="color:#DC2626; font-size:26px;">${fmt_price(total_money)} 元</b>
-                    </div>
-                </div>
-            </div>
-            """, unsafe_allow_html=True)
-
-            c_out_col1, c_out_col2 = st.columns([1, 1])
-            with c_out_col1:
-                st.markdown("#### 📞 1. 店家總單（報單照這個唸即可）：")
-                st.dataframe(summary_grouped, use_container_width=True, hide_index=True)
-
-            with c_out_col2:
-                st.markdown("#### 👥 2. 個人發放核對名單（餐點送達時對照發放）：")
-                st.dataframe(person_grouped, use_container_width=True, hide_index=True)
-
-            st.write("")
-            with st.expander("📲 點此展開「LINE 一鍵複製店家格式」文字", expanded=False):
-                st.text_area("直接複製以下文字傳給店家即可：", value=line_order_text, height=220)
-
-            c_p1, c_p2 = st.columns([1, 3])
-            with c_p1:
-                st.button("🖨️ 列印此出單表 (PDF)", on_click=lambda: st.components.v1.html("<script>window.print();</script>", height=0))
-            with c_p2:
-                st.caption("💡 提示：點擊「列印出單表」後，可在彈出視窗中選擇另存為 PDF 或直接列印紙本發餐勾選單！")
+    elif st.session_state.order_step ==
