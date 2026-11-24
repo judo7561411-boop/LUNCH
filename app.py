@@ -494,7 +494,7 @@ with nav_col3:
 st.write("---")
 
 # -------------------------------------------------------------
-# 分頁 1：畫面式逐項轉跳點餐
+# 分頁 1：畫面式逐項轉跳點餐（小菜、加料、湯品不加麵）
 # -------------------------------------------------------------
 if st.session_state.active_main_tab == "tab_order":
     chosen_date_str = str(st.session_state.target_order_date)
@@ -785,15 +785,27 @@ if st.session_state.active_main_tab == "tab_order":
                 else:
                     type_options = ["標準份量"]
 
-                is_bento_item = (
+                # -------------------------------------------------------------
+                # 排除加麵邏輯：便當、飯類、水餃、蒸餃、小菜、加料/加點、純湯品皆不加麵
+                # -------------------------------------------------------------
+                no_noodle_keywords = [
+                    "便當", "飯包", "排骨", "雞腿", "飯", 
+                    "水餃", "鍋貼", "蒸餃", 
+                    "小菜", "切", "滷", "炸", "加料", "加點", "單點", "蛋", "小點"
+                ]
+
+                is_no_noodle_item = (
                     any(x in str(store_name) for x in ["便當", "飯包", "排骨", "雞腿"]) or 
-                    any(x in i_name for x in ["便當", "飯", "水餃", "鍋貼", "蒸餃"]) or
-                    any(x in category for x in ["便當", "飯", "水餃", "鍋貼", "蒸餃"])
+                    any(x in i_name for x in no_noodle_keywords) or
+                    any(x in category for x in no_noodle_keywords) or
+                    ("湯" in i_name and not any(m in i_name for m in ["麵", "意麵", "冬粉", "米粉", "板條", "烏龍"])) or
+                    ("湯" in category and not any(m in i_name for m in ["麵", "意麵", "冬粉", "米粉", "板條", "烏龍"]))
                 )
 
+                # 只有非排除項，且確實為麵食專賣（如劉妹鍋燒麵）或餐點名稱明確帶麵時才允許加麵
                 allow_extra = False
-                if not is_bento_item:
-                    allow_extra = ("劉妹" in str(store_name)) or ("意麵" in i_name) or ("鍋燒" in i_name) or ("麵" in category)
+                if not is_no_noodle_item:
+                    allow_extra = ("劉妹" in str(store_name)) or any(m in i_name for m in ["意麵", "鍋燒", "牛肉麵", "湯麵", "乾麵"]) or ("麵" in category)
 
                 has_spec = len(type_options) > 1
                 is_dumpling = is_dumpling_item(i_name)
@@ -967,7 +979,7 @@ if st.session_state.active_main_tab == "tab_order":
                     st.rerun()
                 st.markdown('</div>', unsafe_allow_html=True)
 
-    # 畫面 6：挑選加麵
+    # 畫面 6：挑選加麵（僅劉妹等麵類專門店才會進入）
     elif st.session_state.order_step == "EXTRA":
         cur_item = st.session_state.current_picking_item
         p_name = cur_item["name"]
